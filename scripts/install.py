@@ -9,7 +9,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = ["planboard", "wrap", "docs-curator", "docs-librarian"]
+SKILLS = [
+    "verifier-driven-development",
+    "planboard",
+    "wrap",
+    "docs-curator",
+    "docs-librarian",
+]
 AGENTS = [
     "planboard-researcher.toml",
     "planboard-synthesizer.toml",

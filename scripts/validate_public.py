@@ -16,6 +16,13 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_SKILLS = {
+    "verifier-driven-development",
+    "planboard",
+    "wrap",
+    "docs-curator",
+    "docs-librarian",
+}
 FORBIDDEN = [
     "CUA" + "_mobile",
     "cua" + "-mobile",
@@ -62,6 +69,27 @@ def check_sample_plan() -> list[str]:
         for key in ("id", "title", "what", "verification"):
             if not step.get(key):
                 errors.append(f"examples/sample-plan.json step {idx}: missing {key}")
+    return errors
+
+
+def check_skill_bundle() -> list[str]:
+    errors: list[str] = []
+    skill_root = ROOT / ".codex" / "skills"
+    present = {path.name for path in skill_root.iterdir() if path.is_dir()}
+    missing = sorted(EXPECTED_SKILLS - present)
+    extra = sorted(present - EXPECTED_SKILLS)
+    if missing:
+        errors.append(f"missing expected skills: {', '.join(missing)}")
+    if extra:
+        errors.append(f"unexpected skills: {', '.join(extra)}")
+    for name in sorted(EXPECTED_SKILLS & present):
+        skill_file = skill_root / name / "SKILL.md"
+        if not skill_file.exists():
+            errors.append(f"{name}: missing SKILL.md")
+            continue
+        text = skill_file.read_text(encoding="utf-8", errors="replace")
+        if f"name: {name}" not in text.split("---", 2)[1]:
+            errors.append(f"{name}: frontmatter name does not match folder")
     return errors
 
 
@@ -408,6 +436,7 @@ def check_install_refuses_self_target() -> list[str]:
 def main() -> int:
     errors = (
         check_forbidden()
+        + check_skill_bundle()
         + check_sample_plan()
         + check_renderer()
         + check_transcript_scanner()

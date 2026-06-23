@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verifier-Driven Development"
+  short_description: "Build with verifier-first feedback loops"
+  default_prompt: "Use $verifier-driven-development to implement this change with verifier-first feedback loops."
