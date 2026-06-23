@@ -56,6 +56,27 @@ The installer copies:
 
 It does not modify application code.
 
+## Recommended First Run
+
+For the closest experience to the source workflow, do one baseline documentation
+pass after installing. This gives `wrap` a stable place to file future session
+learnings instead of scattering notes across whatever docs happen to exist.
+
+From the target repository, ask Codex:
+
+```text
+Use the wrap-librarian subagent with this accepted setup item:
+
+Normalize this repository's documentation baseline for future wrap runs.
+Create or update docs/README.md as a concise documentation index, create
+.codex/hooks/doc-map.json if it is missing, and add a short pointer from the
+primary agent instruction file to the installed planboard and wrap skills.
+Preserve existing content; relocate or link it instead of deleting it.
+```
+
+Review the diff before committing. This is a one-time setup step; normal session
+wraps should still use the Curator -> human acceptance -> Librarian flow below.
+
 ## Use Planboard
 
 Ask Codex for planboard before a non-trivial change:
