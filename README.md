@@ -1,4 +1,4 @@
-# Codex Workflow Skills
+# Codex VDD Skills
 
 Small, installable Codex skills for a Verifier-Driven Development workflow.
 
