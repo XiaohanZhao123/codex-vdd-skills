@@ -1,0 +1,428 @@
+#!/usr/bin/env python3
+"""Validate the public skill bundle."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
+    tomllib = None
+
+
+ROOT = Path(__file__).resolve().parents[1]
+FORBIDDEN = [
+    "CUA" + "_mobile",
+    "cua" + "-mobile",
+    "xiao" + "han",
+    "Xiao" + "han",
+    "/" + "home" + "/" + "qid",
+    "/" + "data" + "drive",
+    "t2v" + "gusw2",
+    "v-" + "zhihong",
+    "MS" + "RA",
+]
+TEXT_EXTS = {".md", ".py", ".toml", ".json", ".txt", ".yaml", ".yml"}
+
+
+def iter_text_files():
+    for path in ROOT.rglob("*"):
+        if ".git" in path.parts or "__pycache__" in path.parts:
+            continue
+        if path.is_file() and path.suffix in TEXT_EXTS:
+            yield path
+
+
+def check_forbidden() -> list[str]:
+    hits: list[str] = []
+    for path in iter_text_files():
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for needle in FORBIDDEN:
+            if needle in text:
+                rel = path.relative_to(ROOT)
+                hits.append(f"{rel}: contains {needle!r}")
+    return hits
+
+
+def check_sample_plan() -> list[str]:
+    errors: list[str] = []
+    path = ROOT / "examples" / "sample-plan.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - direct CLI diagnostics
+        return [f"{path.relative_to(ROOT)}: invalid JSON: {exc}"]
+    if not isinstance(data.get("steps"), list) or not data["steps"]:
+        errors.append("examples/sample-plan.json: missing non-empty steps")
+    for idx, step in enumerate(data.get("steps", []), start=1):
+        for key in ("id", "title", "what", "verification"):
+            if not step.get(key):
+                errors.append(f"examples/sample-plan.json step {idx}: missing {key}")
+    return errors
+
+
+def check_renderer() -> list[str]:
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "missing" / "nested" / "planboard-public-validate.html"
+        injected_plan = Path(tmp) / "injected-plan.json"
+        injected_out = Path(tmp) / "injected-plan.html"
+        unicode_plan = Path(tmp) / "unicode-plan.json"
+        unicode_out = Path(tmp) / "unicode-plan.html"
+        token_plan = Path(tmp) / "token-plan.json"
+        token_out = Path(tmp) / "token-plan.html"
+        cmd = [
+            sys.executable,
+            str(ROOT / ".codex" / "skills" / "planboard" / "render_planboard.py"),
+            str(ROOT / "examples" / "sample-plan.json"),
+            str(out),
+            "--slug",
+            'bad"slug',
+        ]
+        result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode != 0:
+            return [f"renderer failed: {result.stderr.strip() or result.stdout.strip()}"]
+        text = out.read_text(encoding="utf-8", errors="replace")
+        injected_plan.write_text(
+            json.dumps(
+                {
+                    "task": 'x </script><script>globalThis.pwned=1</script>',
+                    "round": 1,
+                    "headline": "h",
+                    "steps": [
+                        {
+                            "id": "step-1",
+                            "title": "t",
+                            "what": "w",
+                            "verification": "v",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        injected_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / ".codex" / "skills" / "planboard" / "render_planboard.py"),
+                str(injected_plan),
+                str(injected_out),
+                "--slug",
+                "script-check",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if injected_result.returncode != 0:
+            return [
+                "renderer failed on script-injection fixture: "
+                f"{injected_result.stderr.strip() or injected_result.stdout.strip()}"
+            ]
+        injected_text = injected_out.read_text(encoding="utf-8", errors="replace")
+        unicode_plan.write_text(
+            json.dumps(
+                {
+                    "task": "迁移功能",
+                    "round": 1,
+                    "headline": "h",
+                    "steps": [
+                        {
+                            "id": "step-1",
+                            "title": "t",
+                            "what": "w",
+                            "verification": "v",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        unicode_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / ".codex" / "skills" / "planboard" / "render_planboard.py"),
+                str(unicode_plan),
+                str(unicode_out),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if unicode_result.returncode != 0:
+            return [
+                "renderer failed on unicode slug fixture: "
+                f"{unicode_result.stderr.strip() or unicode_result.stdout.strip()}"
+            ]
+        token_plan.write_text(
+            json.dumps(
+                {
+                    "task": "Render __ROUND__ and __ALTS__ literally",
+                    "round": 3,
+                    "headline": "Keep __DATE__ literal",
+                    "steps": [
+                        {
+                            "id": "step-1",
+                            "title": "t",
+                            "summary": "mentions __ALTS__",
+                            "what": "w",
+                            "verification": "v",
+                        }
+                    ],
+                    "alternatives_considered": [{"approach": "A", "why_not": "B"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        token_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / ".codex" / "skills" / "planboard" / "render_planboard.py"),
+                str(token_plan),
+                str(token_out),
+                "--slug",
+                "token-check",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if token_result.returncode != 0:
+            return [
+                "renderer failed on placeholder-token fixture: "
+                f"{token_result.stderr.strip() or token_result.stdout.strip()}"
+            ]
+        token_text = token_out.read_text(encoding="utf-8", errors="replace")
+    if "step-1-contract" not in text or "复制批注" not in text:
+        return ["renderer output is missing expected sample content"]
+    if 'var KEY = "planboard_bad-slug_r1";' not in text:
+        return ["renderer did not sanitize the slug before embedding it in JavaScript"]
+    if 'var TASK = "x \\u003c/script>\\u003cscript>globalThis.pwned=1\\u003c/script>";' not in injected_text:
+        return ["renderer did not protect JSON strings embedded in a script tag"]
+    if "slug=plan-" not in unicode_result.stdout:
+        return ["renderer did not create a stable unique slug for non-ASCII task text"]
+    if (
+        "Render __ROUND__ and __ALTS__ literally" not in token_text
+        or "Keep __DATE__ literal" not in token_text
+        or "mentions __ALTS__" not in token_text
+    ):
+        return ["renderer replaced placeholder-like text from the input plan"]
+    return []
+
+
+def check_transcript_scanner() -> list[str]:
+    scanner = ROOT / ".codex" / "skills" / "docs-curator" / "scripts" / "scan_transcripts.py"
+    triggers = ROOT / ".codex" / "skills" / "docs-curator" / "triggers.txt"
+    normal = {
+        "type": "response_item",
+        "payload": {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Document this behavior"}],
+        },
+    }
+    event_msg = {
+        "type": "event_msg",
+        "payload": {
+            "type": "user_message",
+            "message": "Document this event stream behavior",
+            "images": [],
+            "local_images": [],
+        },
+    }
+    subagent_meta = {
+        "type": "session_meta",
+        "payload": {"thread_source": "subagent", "source": {"subagent": "review"}},
+    }
+    bootstrap = {
+        "type": "response_item",
+        "payload": {
+            "type": "message",
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "# AGENTS.md instructions for /repo\nDocument this guidance",
+                }
+            ],
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        normal_path = Path(tmp) / "normal.jsonl"
+        event_path = Path(tmp) / "event.jsonl"
+        dup_path = Path(tmp) / "duplicate.jsonl"
+        bootstrap_path = Path(tmp) / "bootstrap.jsonl"
+        subagent_path = Path(tmp) / "subagent.jsonl"
+        normal_path.write_text(json.dumps(normal) + "\n", encoding="utf-8")
+        event_path.write_text(json.dumps(event_msg) + "\n", encoding="utf-8")
+        duplicate_event_msg = {
+            "type": "event_msg",
+            "payload": {
+                "type": "user_message",
+                "message": "Document this behavior",
+                "images": [],
+                "local_images": [],
+            },
+        }
+        dup_path.write_text(
+            json.dumps(normal) + "\n" + json.dumps(duplicate_event_msg) + "\n",
+            encoding="utf-8",
+        )
+        bootstrap_path.write_text(
+            json.dumps(bootstrap) + "\n" + json.dumps(normal) + "\n",
+            encoding="utf-8",
+        )
+        subagent_path.write_text(
+            json.dumps(subagent_meta) + "\n" + json.dumps(normal) + "\n",
+            encoding="utf-8",
+        )
+        normal_result = subprocess.run(
+            [sys.executable, str(scanner), str(triggers), str(normal_path)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        subagent_result = subprocess.run(
+            [sys.executable, str(scanner), str(triggers), str(subagent_path)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        event_result = subprocess.run(
+            [sys.executable, str(scanner), str(triggers), str(event_path)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        dup_result = subprocess.run(
+            [sys.executable, str(scanner), str(triggers), str(dup_path)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        bootstrap_result = subprocess.run(
+            [sys.executable, str(scanner), str(triggers), str(bootstrap_path)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    errors: list[str] = []
+    if normal_result.returncode != 0 or "Document this" not in normal_result.stdout:
+        errors.append("transcript scanner failed to detect a normal human trigger")
+    if event_result.returncode != 0 or "Document this event" not in event_result.stdout:
+        errors.append("transcript scanner failed to detect a Codex event_msg user trigger")
+    if dup_result.returncode != 0 or dup_result.stdout.count(">>> Document this") != 1:
+        errors.append("transcript scanner did not deduplicate repeated Codex user messages")
+    if bootstrap_result.returncode != 0 or bootstrap_result.stdout.count(">>> Document this") != 1:
+        errors.append("transcript scanner did not skip injected AGENTS bootstrap text")
+    if subagent_result.returncode != 0 or subagent_result.stdout.strip():
+        errors.append("transcript scanner did not skip a Codex subagent transcript")
+    return errors
+
+
+def check_lint_helper() -> list[str]:
+    helper = ROOT / ".codex" / "skills" / "docs-librarian" / "scripts" / "add_lint.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        (base / "pyproject.toml").write_text(
+            "[tool.ruff]\nline-length = 100\n", encoding="utf-8"
+        )
+        cfg = base / "src" / "package" / "ruff.toml"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(helper),
+                "argparse.ArgumentParser",
+                "Use C:\\tmp and quote \"paths\" literally.",
+                str(cfg),
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if result.returncode != 0:
+            return [f"add_lint failed: {result.stderr.strip() or result.stdout.strip()}"]
+        text = cfg.read_text(encoding="utf-8")
+    errors: list[str] = []
+    if 'extend = "../../pyproject.toml"' not in text:
+        errors.append("add_lint did not extend the nearest parent Ruff config")
+    if '"argparse.ArgumentParser".msg' not in text:
+        errors.append("add_lint did not write the banned API entry")
+    if tomllib is not None:
+        data = tomllib.loads(text)
+        msg = data["lint"]["flake8-tidy-imports"]["banned-api"]["argparse.ArgumentParser"]["msg"]
+        if msg != 'Use C:\\tmp and quote "paths" literally.':
+            errors.append("add_lint did not preserve TOML string escapes")
+    return errors
+
+
+def check_install_ignores_generated_files() -> list[str]:
+    installer = ROOT / "scripts" / "install.py"
+    cache_dir = ROOT / ".codex" / "skills" / "planboard" / "__pycache__"
+    cache_file = cache_dir / "generated.pyc"
+    cache_dir.mkdir(exist_ok=True)
+    cache_file.write_bytes(b"generated")
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "repo"
+            target.mkdir()
+            result = subprocess.run(
+                [sys.executable, str(installer), "--target", str(target)],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if result.returncode != 0:
+                return [f"install failed: {result.stderr.strip() or result.stdout.strip()}"]
+            copied = target / ".codex" / "skills" / "planboard" / "__pycache__" / "generated.pyc"
+            if copied.exists():
+                return ["install copied generated __pycache__ files into the target repo"]
+    finally:
+        cache_file.unlink(missing_ok=True)
+        try:
+            cache_dir.rmdir()
+        except OSError:
+            pass
+    return []
+
+
+def check_install_refuses_self_target() -> list[str]:
+    installer = ROOT / "scripts" / "install.py"
+    result = subprocess.run(
+        [sys.executable, str(installer), "--target", str(ROOT), "--force"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode == 0:
+        return ["install allowed --force over the source bundle"]
+    if "refusing to install this bundle into itself" not in result.stderr:
+        return ["install self-target refusal produced an unexpected diagnostic"]
+    return []
+
+
+def main() -> int:
+    errors = (
+        check_forbidden()
+        + check_sample_plan()
+        + check_renderer()
+        + check_transcript_scanner()
+        + check_lint_helper()
+        + check_install_ignores_generated_files()
+        + check_install_refuses_self_target()
+    )
+    if errors:
+        print("validation failed:")
+        for err in errors:
+            print(f"- {err}")
+        return 1
+    print("public skill bundle validation passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

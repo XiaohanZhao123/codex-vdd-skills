@@ -1,0 +1,104 @@
+# Trigger phrases the Curator greps the transcript for — the ways a human flags
+# intent about the durable record. Kept SPECIFIC on purpose: a phrase here should
+# almost always mean the intent when it appears, so grep stays low-noise. Each hit
+# is still a CANDIDATE — scan_transcripts.py pulls only the human's own turns and
+# wraps each in the turns around it, so judge from the human's words, not the bare
+# phrase. A list is never complete; if a turn plainly means one of these and isn't
+# listed, act on it anyway. Lines starting with # are comments.
+
+# ============ record-this  →  ADD ============
+记一下
+记下来
+记下
+记到
+记进
+记一笔
+记录一下
+写下来
+写进文档
+写个备忘
+留个记录
+备注一下
+别忘了写
+别忘了记
+加到文档
+加进文档
+补进文档
+记进纪要
+归档一下
+write this down
+write it down
+note this
+make a note
+jot this down
+add this to the doc
+add to the docs
+add a note
+put this in the docs
+document this
+for the record
+don't forget to note
+don't forget to write
+capture this
+record this
+leave a note
+note to self
+
+# ============ is-this-already-said  →  CHECK, then merge or retire ============
+说过没
+说过吗
+之前说过
+是不是说过
+是不是讲过
+讲过吗
+提过吗
+提过没
+之前提过
+写过没
+是不是已经有了
+找找文档
+翻一下文档
+看下文档
+查一下文档
+搜一下文档
+文档里有没有
+doc 里有没有
+didn't we say
+didn't we cover
+didn't we discuss
+isn't this in the docs
+isn't this documented
+is this documented
+is this written down
+do we have a doc
+where's the doc
+go find the doc
+check the docs
+look in the docs
+have we documented
+wasn't this already
+
+# ============ I've-said-this-before  →  often a PROMOTE (a rule the agent keeps breaking) ============
+说过好几遍
+说过很多次
+说了好几次
+跟你说过
+提醒过你
+提醒你多少次
+讲过多少次
+多少次了
+又用了
+又写了
+又搞了
+又犯了
+都说了别
+i keep telling you
+i've said this before
+i've told you
+how many times
+we've been over this
+stop using
+stop writing
+for the last time
+remember not to
+i shouldn't have to say

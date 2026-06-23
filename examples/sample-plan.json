@@ -1,0 +1,59 @@
+{
+  "task": "Add a small export adapter without changing the existing default path.",
+  "round": 1,
+  "headline": "Keep the current default stable while adding one verified adapter path.",
+  "approach_summary": "The plan separates source-format changes from adapter output, adds verifier coverage before broad rewrites, and leaves old defaults untouched until samples are reviewed.",
+  "steps": [
+    {
+      "id": "step-1-contract",
+      "title": "Pin the input and output contract",
+      "summary": "Write down the exact source fields and adapter fields before editing code.",
+      "what": "Inspect the current exporter, examples, and consumer expectations. Record the source contract separately from the adapter contract so later steps do not mix them.",
+      "files": [
+        "docs/export-adapter.md"
+      ],
+      "verification": "A reviewer can identify the source format, adapter format, and compatibility boundary from one doc section."
+    },
+    {
+      "id": "step-2-verifier",
+      "title": "Build a verifier over mock examples",
+      "summary": "Create small examples that fail on missing fields, wrong masks, and bad coordinates.",
+      "what": "Add mock rows and a verifier that checks structure before any training or downstream consumption starts.",
+      "files": [
+        "tests/test_export_adapter_verifier.py"
+      ],
+      "commands": [
+        "pytest -q tests/test_export_adapter_verifier.py"
+      ],
+      "verification": "The verifier catches at least one intentionally malformed mock for each high-risk contract rule."
+    },
+    {
+      "id": "step-3-adapter",
+      "title": "Implement the adapter as a narrow path",
+      "summary": "Reuse existing serialization helpers and keep the default export unchanged.",
+      "what": "Add the adapter behind an explicit flag or command while reusing existing parsing and validation helpers.",
+      "files": [
+        "scripts/export_adapter.py",
+        "src/package/export_adapter.py"
+      ],
+      "depends_on": [
+        "step-1-contract",
+        "step-2-verifier"
+      ],
+      "verification": "A smoke run produces expected JSONL and the previous default command still produces byte-for-byte comparable output on the mock set."
+    }
+  ],
+  "deferred": [
+    "Full dataset run after the browser-reviewed sample passes.",
+    "Removing legacy output only after the new consumer confirms compatibility."
+  ],
+  "open_questions": [
+    "Should the adapter become the default in the next release or remain opt-in?"
+  ],
+  "alternatives_considered": [
+    {
+      "approach": "Replace the exporter in one step",
+      "why_not": "It increases blast radius before verifier coverage exists."
+    }
+  ]
+}
