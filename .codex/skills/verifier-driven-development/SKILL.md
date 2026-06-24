@@ -23,6 +23,11 @@ or real-entrypoint smoke runs.
 If a manual correction exposes a class of mistake that can recur, decide whether
 it should become a verifier, a mock case, or a focused sub-agent review.
 
+For generated or probabilistic outputs, make the verifier policy explicit before
+rerunning the pipeline: accept, repair, regenerate, filter/drop, or warn. If bad
+outputs would poison downstream training or review, prefer a high-precision gate
+and report the yield loss instead of silently keeping questionable rows.
+
 ## Workflow
 
 ### 1. Extract The Intent Contract
@@ -37,6 +42,8 @@ affect implementation or validation:
   policy, and skipped cases;
 - what must remain separate, such as source format vs consumer adapter, internal
   state vs trainer-facing rows, or automated checks vs human review;
+- how verifier failures should be handled, especially for generated artifacts
+  where the choice may be regenerate, repair, filter, or keep with a warning;
 - the recommended default when the codebase does not fully decide.
 
 Inspect code, tests, docs, and prior artifacts before asking the operator. Ask
@@ -68,6 +75,8 @@ Use the right verifier type:
 
 - **Code verifier**: deterministic structure, schema, coordinates, masks,
   parser boundaries, file existence, prompt forbidden terms, output scales.
+- **Semantic verifier**: consistency between generated reasoning and actions,
+  prompt labels, task state, provenance, and the intent visible in inputs.
 - **Entrypoint smoke**: CLI/script behavior, generated artifact shape, real
   adapter consumption, framework preprocessing.
 - **Preview verifier**: HTML/image/UI rendering where humans need to inspect
@@ -128,6 +137,12 @@ needs to observe.
 Human review, HTML preview, trainer-format inspection, and operator feedback are
 part of the verifier loop. They catch classes of mistakes automation missed.
 
+Treat the review surface itself as a product of the verifier system. A useful
+preview should make suspicious cases easy to find, jump to, and inspect without
+UI chrome blocking the evidence. When possible, verify the preview structure:
+links target existing items, referenced assets exist, flagged cases are marked,
+and layout choices do not hide the fields a human must compare.
+
 After each manual correction, decide whether to add:
 
 - a new mock;
@@ -138,6 +153,20 @@ After each manual correction, decide whether to add:
 
 The goal is not to eliminate human judgment. The goal is to make repeated human
 corrections unnecessary.
+
+### 8. Close The Loop On Yield And Drift
+
+For pipelines that synthesize, rationalize, rank, or otherwise generate data,
+validation should answer two questions:
+
+- did the new contract reduce the known failure class?
+- how many otherwise useful samples did the verifier reject?
+
+Keep rejected samples auditable enough for spot checks. Report counts, examples,
+and the reason they failed. If the drop rate is too high, fix the upstream
+contract, prompt, adapter, or model input before weakening the verifier. If the
+drop rate is acceptable and the remaining data is cleaner, keep the precision
+gate and make the loss visible in the final report.
 
 ## Reporting
 

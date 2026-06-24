@@ -123,10 +123,14 @@ editing the implementation.
 Expected loop:
 
 1. State the intent contract in operational terms.
-2. Reuse existing tests/verifiers and add a decisive mock set where needed.
-3. Implement in narrow verifier loops.
-4. Use sub-agent verifier passes for independent semantic checks.
-5. Feed human review and preview findings back into mocks or verifiers.
+2. Define how verifier failures should be handled: accept, repair, regenerate,
+   filter/drop, or keep with a warning.
+3. Reuse existing tests/verifiers and add a decisive mock set where needed.
+4. Implement in narrow verifier loops.
+5. Use sub-agent verifier passes for independent semantic checks.
+6. For model-generated artifacts, report both quality gains and yield loss from
+   filters or drops.
+7. Feed human review and preview findings back into mocks or verifiers.
 
 ## Use Planboard
 
