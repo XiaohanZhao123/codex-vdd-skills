@@ -157,6 +157,36 @@ def render_questions(qs) -> str:
     return f"""  <div class="qbox">
     <div class="lbl">决策项 / 开放问题</div>
     <ol>{lis}</ol>
+    </div>"""
+
+
+def render_revision_changes(items) -> str:
+    items = [i for i in (items or []) if i]
+    if not items:
+        return ""
+    cards = []
+    for raw in items:
+        if isinstance(raw, dict):
+            sid = raw.get("step_id") or raw.get("id") or raw.get("step") or ""
+            status = raw.get("status") or raw.get("verdict") or raw.get("kind") or ""
+            change = raw.get("change") or raw.get("summary") or raw.get("note") or ""
+        else:
+            sid = ""
+            status = ""
+            change = str(raw)
+        head_bits = []
+        if sid:
+            head_bits.append(f'<code class="dchip">{esc(sid)}</code>')
+        if status:
+            head_bits.append(f'<span class="revtag">{esc(status)}</span>')
+        head = "".join(head_bits)
+        cards.append(
+            f'<div class="revitem"><div class="revhead">{head}</div>'
+            f'<div class="revtext">{esc(change)}</div></div>'
+        )
+    return f"""  <div class="revbox">
+    <div class="lbl">本轮改动（打开页面先看这里）</div>
+    <div class="revgrid">{"".join(cards)}</div>
   </div>"""
 
 
@@ -179,6 +209,7 @@ def build_html(plan: dict, slug: str) -> str:
     lskey = f"planboard_{slug}_r{rnd}"
 
     steps_html = "\n".join(render_step(s, i) for i, s in enumerate(steps))
+    changes_html = render_revision_changes(plan.get("changes_from_previous_round"))
     deferred_html = render_deferred(plan.get("deferred"))
     alts_html = render_alternatives(plan.get("alternatives_considered"))
     q_html = render_questions(plan.get("open_questions"))
@@ -253,6 +284,14 @@ def build_html(plan: dict, slug: str) -> str:
   .qbox{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;padding:16px 20px;margin:18px 0}
   .qbox ol{margin:6px 0 0;padding-left:24px}.qbox li{margin:10px 0;color:var(--mut)}
   .qbox .qtext{color:#d7dfeb}
+  .revbox{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);
+    border-radius:8px;padding:16px 20px;margin:18px 0}
+  .revgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+  .revitem{background:var(--card);border:1px solid var(--softline);border-radius:8px;padding:12px 14px}
+  .revhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .revtag{font-size:12px;font-weight:760;color:var(--warn);border:1px solid rgba(233,191,99,.42);
+    background:rgba(233,191,99,.12);border-radius:999px;padding:2px 8px}
+  .revtext{font-size:15px;line-height:1.56;color:#e4ebf4}
   /* ---- sticky action bar ---- */
   .actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(15,17,21,0),var(--bg) 36%);
     padding:22px 0 8px;margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;z-index:10}
@@ -288,6 +327,8 @@ def build_html(plan: dict, slug: str) -> str:
     <div class="headline">__HEADLINE__</div>
     __APPROACH_BLOCK__
   </div>
+
+__CHANGES__
 
 __STEPS__
 
@@ -448,6 +489,7 @@ __ALTS__
             "__LSKEY__": lskey,
             "__HEADLINE__": esc(headline),
             "__APPROACH_BLOCK__": approach_block,
+            "__CHANGES__": changes_html,
             "__STEPS__": steps_html,
             "__DEFERRED__": deferred_html,
             "__QUESTIONS__": q_html,

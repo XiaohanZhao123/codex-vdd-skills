@@ -51,8 +51,17 @@ of silently performing the workflow in the parent context.
    Orchestrator or with a final verification subagent. Verifier findings should
    name the affected step id, cite the evidence command or file line, and give
    the smallest correction. Cut unsupported steps.
-7. Write the final plan JSON to `/tmp/planboard/<slug>-r<N>.json`.
-8. Render directly with the bundled renderer:
+7. Run the operator-visible plan text through `shuorenhua` before rendering.
+   Treat the plan as `status/docs` prose, use `minimal` or `standard` cleanup,
+   and preserve protected spans: file paths, commands, code symbols, schema
+   keys, step ids, A/B/C labels, verdict tags, and cited evidence. Clean only
+   visible prose fields such as `headline`, `approach_summary`, step `title`,
+   `summary`, `what`, `why`, `verification`, `risk`,
+   `changes_from_previous_round`, `alternatives_considered`, `open_questions`,
+   and `deferred`. The pass must remove template/AI-flavored phrasing without
+   adding facts, weakening decisions, or changing the plan contract.
+8. Write the final plan JSON to `/tmp/planboard/<slug>-r<N>.json`.
+9. Render directly with the bundled renderer:
 
 ```bash
 python3 .codex/skills/planboard/render_planboard.py \
@@ -61,7 +70,7 @@ python3 .codex/skills/planboard/render_planboard.py \
   --slug <slug>
 ```
 
-9. Reply with only the URL plus one short instruction: mark each step 采纳/改/砍,
+10. Reply with only the URL plus one short instruction: mark each step 采纳/改/砍,
    comment, click 复制批注, and paste the annotations back.
 
 ## Revision Loop
@@ -79,10 +88,17 @@ When the operator pastes annotations:
 Preserve accepted step ids. Apply 改 notes directly. Drop 砍 steps unless the
 note asks for a replacement.
 
+Every revision round must make the delta obvious in the HTML. Populate
+`changes_from_previous_round` with one short item per changed, preserved, or
+removed step that matters for review. The rendered page shows this block near
+the top as "本轮改动（打开页面先看这里）", so the operator can see at a glance
+what changed after their annotations without reopening the previous round.
+
 When feedback changes a core assumption, rerun the planning loop instead of
 patching prose in place. Re-ground the disputed point against files, examples,
 or external training code when available, then render a new round with the
-changed premise visible in `headline`, `approach_summary`, and affected steps.
+changed premise visible in `headline`, `approach_summary`,
+`changes_from_previous_round`, and affected steps.
 
 If the operator needs to choose between approaches, write the options directly
 in the plan with inline labels such as `A（...）`, `B（...）`, `C（...）`; always
@@ -111,6 +127,9 @@ Do not restart or modify an existing preview server unless the operator asks.
 - The visible layer for each step must be enough to choose 采纳/改/砍 without
   opening details. Avoid empty labels such as "update docs" or "implement
   changes"; say the contract change or implementation boundary.
+- Apply `shuorenhua` to the final visible layer before writing JSON. Prefer
+  direct, concrete wording over rhetorical setup, empty summaries, and
+  contrastive phrasing that repeats known context.
 - Stable step ids are load-bearing across rounds.
 - Do not enter Codex plan mode; planboard is its own review surface.
 - Match the operator's language in replies.

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SKILLS = {
     "verifier-driven-development",
     "planboard",
+    "shuorenhua",
     "wrap",
     "docs-curator",
     "docs-librarian",
@@ -102,6 +103,8 @@ def check_renderer() -> list[str]:
         unicode_out = Path(tmp) / "unicode-plan.html"
         token_plan = Path(tmp) / "token-plan.json"
         token_out = Path(tmp) / "token-plan.html"
+        revision_plan = Path(tmp) / "revision-plan.json"
+        revision_out = Path(tmp) / "revision-plan.html"
         cmd = [
             sys.executable,
             str(ROOT / ".codex" / "skills" / "planboard" / "render_planboard.py"),
@@ -225,6 +228,55 @@ def check_renderer() -> list[str]:
                 f"{token_result.stderr.strip() or token_result.stdout.strip()}"
             ]
         token_text = token_out.read_text(encoding="utf-8", errors="replace")
+        revision_plan.write_text(
+            json.dumps(
+                {
+                    "task": "Revision visibility",
+                    "round": 2,
+                    "headline": "Show changed steps first.",
+                    "changes_from_previous_round": [
+                        {
+                            "step_id": "step-1",
+                            "status": "改",
+                            "change": "Clarified the active entrypoint.",
+                        },
+                        {
+                            "step_id": "step-2",
+                            "status": "保留",
+                            "change": "Accepted step stayed fixed.",
+                        },
+                    ],
+                    "steps": [
+                        {
+                            "id": "step-1",
+                            "title": "t",
+                            "what": "w",
+                            "verification": "v",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        revision_result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / ".codex" / "skills" / "planboard" / "render_planboard.py"),
+                str(revision_plan),
+                str(revision_out),
+                "--slug",
+                "revision-check",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if revision_result.returncode != 0:
+            return [
+                "renderer failed on revision-visibility fixture: "
+                f"{revision_result.stderr.strip() or revision_result.stdout.strip()}"
+            ]
+        revision_text = revision_out.read_text(encoding="utf-8", errors="replace")
     if "step-1-contract" not in text or "复制批注" not in text:
         return ["renderer output is missing expected sample content"]
     if 'var KEY = "planboard_bad-slug_r1";' not in text:
@@ -239,6 +291,12 @@ def check_renderer() -> list[str]:
         or "mentions __ALTS__" not in token_text
     ):
         return ["renderer replaced placeholder-like text from the input plan"]
+    if (
+        "本轮改动" not in revision_text
+        or "Clarified the active entrypoint." not in revision_text
+        or "Accepted step stayed fixed." not in revision_text
+    ):
+        return ["renderer did not expose revision changes near the top of the page"]
     return []
 
 
@@ -406,6 +464,13 @@ def check_install_ignores_generated_files() -> list[str]:
             )
             if result.returncode != 0:
                 return [f"install failed: {result.stderr.strip() or result.stdout.strip()}"]
+            missing = sorted(
+                name
+                for name in EXPECTED_SKILLS
+                if not (target / ".codex" / "skills" / name / "SKILL.md").exists()
+            )
+            if missing:
+                return [f"install did not copy expected skills: {', '.join(missing)}"]
             copied = target / ".codex" / "skills" / "planboard" / "__pycache__" / "generated.pyc"
             if copied.exists():
                 return ["install copied generated __pycache__ files into the target repo"]

@@ -13,6 +13,63 @@ Verification is not a final checklist. It is the development loop:
 contract first, mock set second, implementation third, verifier feedback
 throughout.
 
+## Human Review Budget
+
+Human review is a high-cost verifier, not a safety net for routine agent work.
+Use it only at high-ROI choke points where automation cannot reliably judge the
+outcome and a wrong decision would steer many later steps.
+
+Default to automated verifiers, smoke runs, structured traces, and generated
+previews that the implementer can inspect without stopping the operator. Stop
+for human review only when the checkpoint has all of these properties:
+
+- a clear decision the human is better positioned to make than code;
+- compact artifacts that expose the decision without asking the human to debug;
+- prior automated checks for schema, file existence, transport, and basic
+  invariants have already passed or failed clearly;
+- the answer changes the next implementation direction, experiment scope, or
+  acceptance decision.
+
+Good human-review gates include visual/semantic quality judgments, final
+workflow acceptance, choosing between materially different product behaviors, or
+approving an expensive/broad run. Poor gates include file plumbing, JSON schema
+validity, routine per-step approvals, broken scripts, missing artifacts, or
+anything the implementer can verify deterministically.
+
+## Review Artifact Standard
+
+When human review is justified, the artifact must be built for review, not for
+debugging. A good preview follows the pattern that worked in CUA Mobile's
+Node-A and SFT sample reviews: the page makes the human judge the hard semantic
+question directly, while code handles plumbing and format checks first.
+
+Design the artifact around the purpose of the review:
+
+- expose the semantic relationship that automation cannot reliably judge, such
+  as image-coordinate-action alignment, source-vs-adapter separation, target
+  masking, visual quality, or whether feedback changed the next attempt;
+- render the target contract directly, not a proxy that requires mental
+  reconstruction;
+- collocate the evidence needed for one judgment in one card or row: source
+  truth, derived/model-visible form, relevant visual evidence, IDs, and
+  provenance;
+- use visual aids only when they reduce judgment load. Overlays, boxes, arrows,
+  diffs, and side-by-side views are tools for showing correspondence, scale,
+  locality, ordering, or change; they are not requirements by themselves;
+- use stratified sampling when coverage matters, so every important semantic
+  class or edge case appears at least once;
+- include a compact audit header with counts, histograms, selected cases,
+  warnings, verifier status, and exactly what decision the operator is being
+  asked to make;
+- copy or generate assets next to the HTML so the page is self-contained and
+  stable under a preview server;
+- run deterministic contract checks before writing the page, and fail clearly
+  instead of asking the operator to notice missing or stale artifacts.
+
+Avoid review pages that make the operator cross-reference loose files, raw logs,
+long JSON dumps, or unstratified first-N samples. Those are implementer/debug
+surfaces, not human-review gates.
+
 ## Core Rule
 
 Before changing non-trivial behavior, state the behavior that must be preserved
@@ -80,7 +137,8 @@ Use the right verifier type:
 - **Entrypoint smoke**: CLI/script behavior, generated artifact shape, real
   adapter consumption, framework preprocessing.
 - **Preview verifier**: HTML/image/UI rendering where humans need to inspect
-  alignment, overlays, or readability.
+  semantic correspondence, visual quality, ordering, scale, locality, or
+  readability.
 - **Sub-agent verifier**: independent context checks for non-obvious semantic
   risks, stale assumptions, contract conflicts, or whether a simplification lost
   intent.
@@ -122,6 +180,22 @@ Give subagents raw artifacts and a bounded question. Avoid leaking your intended
 answer unless the task is explicitly to review that answer. Resolve routine
 sub-agent questions yourself; escalate only decisions the repo cannot settle.
 
+Verifier prompts must be high quality. Include:
+
+- the exact artifacts to inspect and which artifact is source of truth;
+- a bounded checklist of semantic risks, stale formats, coordinate/scale
+  mismatches, ordering mistakes, or role/transport violations;
+- forbidden fallbacks or known-bad legacy markers when relevant;
+- an output contract that requires severity, evidence path/ID/snippet, and the
+  smallest concrete correction;
+- an explicit "no blocking issues" path plus residual risks that still require
+  human visual or semantic judgment.
+
+Do not send a subagent a broad "review this" prompt when the failure class is
+known. Turn the known failure class into a verifier prompt item, then feed any
+new finding back into a code verifier, stratification bucket, review artifact,
+or documented residual risk.
+
 ### 6. Simplify With The Same Contract
 
 Use the same loop for cleanup and refactoring. Lock behavior with mocks and
@@ -136,6 +210,9 @@ needs to observe.
 
 Human review, HTML preview, trainer-format inspection, and operator feedback are
 part of the verifier loop. They catch classes of mistakes automation missed.
+They should be placed sparingly: use generated previews as evidence, but ask the
+operator to review only the highest-ROI checkpoints described in the Human
+Review Budget.
 
 Treat the review surface itself as a product of the verifier system. A useful
 preview should make suspicious cases easy to find, jump to, and inspect without

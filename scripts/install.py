@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = [
     "verifier-driven-development",
     "planboard",
+    "shuorenhua",
     "wrap",
     "docs-curator",
     "docs-librarian",

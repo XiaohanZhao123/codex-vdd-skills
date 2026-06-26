@@ -8,12 +8,13 @@ kind of verifier, but not the only one. A useful loop can also include HTML
 previews, CLI smokes, training-format dry-runs, sub-agent review passes, and
 human feedback that gets folded back into future checks.
 
-This repo packages that loop into three practical skills:
+This repo packages that loop into four practical skills:
 
 | Skill | Purpose |
 | --- | --- |
 | **Verifier-Driven Development** | Make contract-first, verifier-first implementation the default loop. |
 | **Planboard** | Fan out research and synthesis agents, then render a browser-reviewable implementation plan. |
+| **Shuorenhua** | Clean plan, status, and documentation prose so review text stays direct and approval-ready. |
 | **Wrap** | End a session by curating documentation updates and applying only the accepted ones. |
 
 The bundle is intentionally small: Codex skill folders, custom agent role files,
@@ -33,8 +34,9 @@ VDD is close to TDD, but wider:
   class of mistake next time?
 
 The skills here reflect that shape. Planboard makes intent reviewable before
-implementation. Wrap prevents useful session knowledge from evaporating. VDD
-ties the two together as the default development loop.
+implementation. Shuorenhua keeps the review text direct enough to approve or
+reject quickly. Wrap prevents useful session knowledge from evaporating. VDD
+ties the loop together as the default development practice.
 
 ## What Is Included
 
@@ -49,6 +51,7 @@ ties the two together as the default development loop.
   skills/
     verifier-driven-development/
     planboard/
+    shuorenhua/
     wrap/
     docs-curator/
     docs-librarian/
@@ -79,6 +82,7 @@ The installer copies:
 
 - `.codex/skills/verifier-driven-development`
 - `.codex/skills/planboard`
+- `.codex/skills/shuorenhua`
 - `.codex/skills/wrap`
 - `.codex/skills/docs-curator`
 - `.codex/skills/docs-librarian`
@@ -102,7 +106,7 @@ Normalize this repository's documentation baseline for future wrap runs.
 Create or update docs/README.md as a concise documentation index, create
 .codex/hooks/doc-map.json if it is missing, and add a short pointer from the
 primary agent instruction file to the installed verifier-driven-development,
-planboard, and wrap skills.
+planboard, shuorenhua, and wrap skills.
 Preserve existing content; relocate or link it instead of deleting it.
 ```
 
@@ -144,9 +148,12 @@ Expected flow:
 
 1. The main agent reads the skill and the plan schema.
 2. It fans out research, synthesis, and verification subagents.
-3. It renders an HTML review page from JSON.
-4. You annotate each step as `采纳` / `改` / `砍`, copy annotations, and paste them back.
-5. The agent revises the plan or starts implementation after acceptance.
+3. It cleans the operator-visible plan text with `shuorenhua`.
+4. It renders an HTML review page from JSON.
+5. You annotate each step as `采纳` / `改` / `砍`, copy annotations, and paste them back.
+6. For revision rounds, the new page shows a "本轮改动" block near the top so
+   changes from your annotations are visible before you reread the steps.
+7. The agent revises the plan or starts implementation after acceptance.
 
 Render the included sample:
 
@@ -182,6 +189,7 @@ This keeps session learnings from drifting into stale or scattered documentation
 
 ```text
 Before a large change     planboard -> browser-reviewed implementation plan
+Before human review       shuorenhua -> direct, approval-ready plan/status/docs prose
 During implementation     verifier-driven-development -> contract + mocks + verifiers
 After the session         wrap -> accepted doc updates, retired stale notes, promoted guardrails
 ```

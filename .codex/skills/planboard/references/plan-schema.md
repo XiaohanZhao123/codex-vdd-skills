@@ -11,6 +11,13 @@ keep them in sync.
 
   "headline": "string — ONE sentence, the whole plan grasped in a breath",
   "approach_summary": "string — <= 3 sentences of the essential reasoning",
+  "changes_from_previous_round": [  // optional; required for revision rounds
+    {
+      "step_id": "step-1",          // affected stable step id, when applicable
+      "status": "采纳|改|砍|新增|保留", // short verdict/change tag
+      "change": "string — what changed and why it should be visible"
+    }
+  ],
 
   "steps": [                        // ordered; ids are STABLE across rounds
     {
@@ -44,6 +51,10 @@ The HTML is interaction-first, so it renders in two layers:
   reading prose. This layer must be specific enough to choose a verdict without
   opening details; avoid generic labels such as "update docs" or "implement
   changes".
+- **Revision delta layer:** when `changes_from_previous_round` is present, the
+  renderer shows it directly under the headline as "本轮改动". Use it in round
+  2+ so the operator can immediately see which annotations changed the plan,
+  which accepted steps stayed fixed, and which steps were added or removed.
 - **Collapsed (context layer):** `approach_summary` (整体思路), and each step's
   `what` / `why` / `commands` / `verification` / `risk` / `depends_on` (详情).
   Available on demand, never dumped.
