@@ -73,6 +73,21 @@ def check_sample_plan() -> list[str]:
     return errors
 
 
+def check_vendored_attribution() -> list[str]:
+    errors: list[str] = []
+    readme = (ROOT / "README.md").read_text(encoding="utf-8", errors="replace")
+    if "MrGeDiao/shuorenhua" not in readme or "MIT" not in readme:
+        errors.append("README.md: missing shuorenhua upstream attribution")
+    license_path = ROOT / ".codex" / "skills" / "shuorenhua" / "LICENSE"
+    if not license_path.exists():
+        errors.append(".codex/skills/shuorenhua/LICENSE: missing vendored MIT license")
+    else:
+        license_text = license_path.read_text(encoding="utf-8", errors="replace")
+        if "Copyright (c) 2026 MrGeDiao" not in license_text:
+            errors.append(".codex/skills/shuorenhua/LICENSE: unexpected copyright notice")
+    return errors
+
+
 def check_skill_bundle() -> list[str]:
     errors: list[str] = []
     skill_root = ROOT / ".codex" / "skills"
@@ -502,6 +517,7 @@ def main() -> int:
     errors = (
         check_forbidden()
         + check_skill_bundle()
+        + check_vendored_attribution()
         + check_sample_plan()
         + check_renderer()
         + check_transcript_scanner()

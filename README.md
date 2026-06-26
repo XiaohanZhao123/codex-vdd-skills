@@ -20,6 +20,11 @@ This repo packages that loop into four practical skills:
 The bundle is intentionally small: Codex skill folders, custom agent role files,
 one sample plan, and thin helper scripts.
 
+`shuorenhua` is vendored from
+[MrGeDiao/shuorenhua](https://github.com/MrGeDiao/shuorenhua) under the MIT
+license. This bundle includes the runtime skill files used by Codex; upstream
+project docs, assets, and automation files are not included.
+
 ## Philosophy
 
 VDD is close to TDD, but wider:
