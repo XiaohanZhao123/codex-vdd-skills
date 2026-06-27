@@ -255,11 +255,6 @@ def check_renderer() -> list[str]:
                             "status": "改",
                             "change": "Clarified the active entrypoint.",
                         },
-                        {
-                            "step_id": "step-2",
-                            "status": "保留",
-                            "change": "Accepted step stayed fixed.",
-                        },
                     ],
                     "steps": [
                         {
@@ -267,6 +262,12 @@ def check_renderer() -> list[str]:
                             "title": "t",
                             "what": "w",
                             "verification": "v",
+                        },
+                        {
+                            "id": "step-2",
+                            "title": "unchanged",
+                            "what": "unchanged body",
+                            "verification": "unchanged verifier",
                         }
                     ],
                 }
@@ -309,9 +310,12 @@ def check_renderer() -> list[str]:
     if (
         "本轮改动" not in revision_text
         or "Clarified the active entrypoint." not in revision_text
-        or "Accepted step stayed fixed." not in revision_text
+        or 'href="#pb-step-1"' not in revision_text
+        or '<div class="step changed-step" id="pb-step-1"' not in revision_text
     ):
-        return ["renderer did not expose revision changes near the top of the page"]
+        return ["renderer did not expose revision changes as linked highlighted steps"]
+    if "Accepted step stayed fixed." in revision_text:
+        return ["renderer revision fixture includes an unchanged accepted step in the delta layer"]
     return []
 
 

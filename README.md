@@ -156,8 +156,9 @@ Expected flow:
 3. It cleans the operator-visible plan text with `shuorenhua`.
 4. It renders an HTML review page from JSON.
 5. You annotate each step as `采纳` / `改` / `砍`, copy annotations, and paste them back.
-6. For revision rounds, the new page shows a "本轮改动" block near the top so
-   changes from your annotations are visible before you reread the steps.
+6. For revision rounds, the new page shows a "本轮改动" block near the top with
+   only the steps that need another read. Each item links to the changed step,
+   and the step card is highlighted with the same note.
 7. The agent revises the plan or starts implementation after acceptance.
 
 Render the included sample:

@@ -11,11 +11,11 @@ keep them in sync.
 
   "headline": "string — ONE sentence, the whole plan grasped in a breath",
   "approach_summary": "string — <= 3 sentences of the essential reasoning",
-  "changes_from_previous_round": [  // optional; required for revision rounds
+  "changes_from_previous_round": [  // optional; required for revision rounds with visible deltas
     {
       "step_id": "step-1",          // affected stable step id, when applicable
-      "status": "采纳|改|砍|新增|保留", // short verdict/change tag
-      "change": "string — what changed and why it should be visible"
+      "status": "改|新增|砍|补约束|保留", // short tag for the visible delta
+      "change": "string — what changed and why this step needs re-reading"
     }
   ],
 
@@ -53,8 +53,10 @@ The HTML is interaction-first, so it renders in two layers:
   changes".
 - **Revision delta layer:** when `changes_from_previous_round` is present, the
   renderer shows it directly under the headline as "本轮改动". Use it in round
-  2+ so the operator can immediately see which annotations changed the plan,
-  which accepted steps stayed fixed, and which steps were added or removed.
+  2+ as a navigation layer: list only the steps the operator should re-read.
+  Each delta item links to the affected step, and that step card is highlighted
+  with the same note. Do not list unchanged accepted steps just to report that
+  they stayed accepted.
 - **Collapsed (context layer):** `approach_summary` (整体思路), and each step's
   `what` / `why` / `commands` / `verification` / `risk` / `depends_on` (详情).
   Available on demand, never dumped.

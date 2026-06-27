@@ -11,6 +11,8 @@ Usage:
 stdlib only.
 """
 
+from __future__ import annotations
+
 import argparse
 import datetime
 import hashlib
@@ -65,8 +67,33 @@ def chips(items, cls) -> str:
     return "".join(f'<code class="{cls}">{esc(i)}</code> ' for i in items)
 
 
-def render_step(step: dict, idx: int) -> str:
-    sid = esc(step.get("id") or f"step-{idx + 1}")
+def step_anchor_id(sid: str) -> str:
+    return "pb-" + slugify(sid or "step")
+
+
+def normalise_revision_changes(items) -> list[dict]:
+    out = []
+    for raw in (items or []):
+        if not raw:
+            continue
+        if isinstance(raw, dict):
+            sid = raw.get("step_id") or raw.get("id") or raw.get("step") or ""
+            status = raw.get("status") or raw.get("verdict") or raw.get("kind") or ""
+            change = raw.get("change") or raw.get("summary") or raw.get("note") or ""
+        else:
+            sid = ""
+            status = ""
+            change = str(raw)
+        if not str(change).strip():
+            continue
+        out.append({"step_id": str(sid).strip(), "status": str(status).strip(), "change": str(change).strip()})
+    return out
+
+
+def render_step(step: dict, idx: int, revision: dict | None = None) -> str:
+    sid_text = str(step.get("id") or f"step-{idx + 1}")
+    sid = esc(sid_text)
+    anchor = esc(step_anchor_id(sid_text))
     title = esc(step.get("title") or "")
     summary = (step.get("summary") or "").strip()
     what = (step.get("what") or "").strip()
@@ -80,6 +107,19 @@ def render_step(step: dict, idx: int) -> str:
     depends = [d for d in (step.get("depends_on") or []) if str(d).strip()]
 
     files_html = f'<div class="files">{chips(files, "fchip")}</div>' if files else ""
+    rev_badge = ""
+    rev_note = ""
+    step_class = "step"
+    if revision:
+        step_class += " changed-step"
+        status = revision.get("status") or "改动"
+        change = revision.get("change") or ""
+        rev_badge = f'<span class="steprevtag">本轮 {esc(status)}</span>'
+        rev_note = (
+            f'<div class="stepchange"><span>本轮改动</span><div>{esc(change)}</div></div>'
+            if change
+            else ""
+        )
 
     drows = []
     if what and what != summary:
@@ -111,9 +151,10 @@ def render_step(step: dict, idx: int) -> str:
     if drows:
         detail_html = f'<details class="detail"><summary>详情</summary><div class="dbody">{"".join(drows)}</div></details>'
 
-    return f"""    <div class="step" data-id="{sid}">
-      <div class="sline"><span class="sid">{sid}</span><h4>{title}</h4></div>
+    return f"""    <div class="{step_class}" id="{anchor}" data-id="{sid}">
+      <div class="sline"><span class="sid">{sid}</span><h4>{title}</h4>{rev_badge}</div>
       <p class="summary">{esc(summary)}</p>
+      {rev_note}
       {files_html}
       <div class="seg" role="group" aria-label="对这一步的处置">
         <button type="button" data-v="accept">✓ 采纳</button><button type="button" data-v="edit">✎ 改</button><button type="button" data-v="reject">✗ 砍</button>
@@ -161,22 +202,20 @@ def render_questions(qs) -> str:
 
 
 def render_revision_changes(items) -> str:
-    items = [i for i in (items or []) if i]
+    items = normalise_revision_changes(items)
     if not items:
         return ""
     cards = []
     for raw in items:
-        if isinstance(raw, dict):
-            sid = raw.get("step_id") or raw.get("id") or raw.get("step") or ""
-            status = raw.get("status") or raw.get("verdict") or raw.get("kind") or ""
-            change = raw.get("change") or raw.get("summary") or raw.get("note") or ""
-        else:
-            sid = ""
-            status = ""
-            change = str(raw)
+        sid = raw.get("step_id") or ""
+        status = raw.get("status") or ""
+        change = raw.get("change") or ""
         head_bits = []
         if sid:
-            head_bits.append(f'<code class="dchip">{esc(sid)}</code>')
+            anchor = esc(step_anchor_id(sid))
+            head_bits.append(
+                f'<a class="revlink" href="#{anchor}"><code class="dchip">{esc(sid)}</code></a>'
+            )
         if status:
             head_bits.append(f'<span class="revtag">{esc(status)}</span>')
         head = "".join(head_bits)
@@ -208,8 +247,13 @@ def build_html(plan: dict, slug: str) -> str:
     date = datetime.date.today().isoformat()
     lskey = f"planboard_{slug}_r{rnd}"
 
-    steps_html = "\n".join(render_step(s, i) for i, s in enumerate(steps))
-    changes_html = render_revision_changes(plan.get("changes_from_previous_round"))
+    revision_changes = normalise_revision_changes(plan.get("changes_from_previous_round"))
+    revision_by_step = {c["step_id"]: c for c in revision_changes if c.get("step_id")}
+    steps_html = "\n".join(
+        render_step(s, i, revision_by_step.get(str(s.get("id") or f"step-{i + 1}")))
+        for i, s in enumerate(steps)
+    )
+    changes_html = render_revision_changes(revision_changes)
     deferred_html = render_deferred(plan.get("deferred"))
     alts_html = render_alternatives(plan.get("alternatives_considered"))
     q_html = render_questions(plan.get("open_questions"))
@@ -240,12 +284,19 @@ def build_html(plan: dict, slug: str) -> str:
   code{background:#0b0f15;border:1px solid var(--line);border-radius:5px;padding:2px 6px;font-size:13px;
     font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   /* ---- step card: summary-first, detail collapsed ---- */
-  .step{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin:16px 0}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin:16px 0;scroll-margin-top:18px}
+  .step.changed-step{border-color:rgba(233,191,99,.68);box-shadow:0 0 0 1px rgba(233,191,99,.10)}
   .step .sline{display:flex;align-items:center;gap:12px}
   .step .sid{font:760 12px/1 ui-monospace,Menlo,monospace;color:var(--acc2);
     background:rgba(184,156,255,.13);border:1px solid rgba(184,156,255,.36);border-radius:999px;padding:6px 10px;white-space:nowrap}
   .step h4{margin:0;font-size:19px;flex:1;font-weight:760;color:var(--ink);letter-spacing:0}
   .step .summary{margin:12px 0 12px;font-size:17px;color:#e4ebf4;line-height:1.66}
+  .steprevtag{font-size:12px;font-weight:780;color:var(--warn);border:1px solid rgba(233,191,99,.44);
+    background:rgba(233,191,99,.13);border-radius:999px;padding:4px 9px;white-space:nowrap}
+  .stepchange{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:start;
+    background:rgba(233,191,99,.08);border:1px solid rgba(233,191,99,.25);border-radius:8px;
+    padding:10px 12px;margin:10px 0 12px;color:#e9edf5;font-size:15px;line-height:1.58}
+  .stepchange span{color:var(--warn);font-size:13px;font-weight:780;padding-top:1px}
   .step .files{margin:4px 0 12px}
   .fchip{color:#cdd6e4}.dchip{color:var(--acc2)}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -289,6 +340,8 @@ def build_html(plan: dict, slug: str) -> str:
   .revgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
   .revitem{background:var(--card);border:1px solid var(--softline);border-radius:8px;padding:12px 14px}
   .revhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .revlink{text-decoration:none}.revlink code{border-color:rgba(184,156,255,.48)}
+  .revlink:hover code{border-color:var(--acc);color:var(--acc)}
   .revtag{font-size:12px;font-weight:760;color:var(--warn);border:1px solid rgba(233,191,99,.42);
     background:rgba(233,191,99,.12);border-radius:999px;padding:2px 8px}
   .revtext{font-size:15px;line-height:1.56;color:#e4ebf4}
@@ -311,6 +364,7 @@ def build_html(plan: dict, slug: str) -> str:
     .step{padding:15px 14px}
     .step .sline{align-items:flex-start;flex-direction:column;gap:8px}
     .step h4{font-size:18px}
+    .stepchange{grid-template-columns:1fr;gap:4px}
     .drow{grid-template-columns:1fr;gap:4px}
     .seg{display:grid;grid-template-columns:repeat(3,1fr);width:100%}
     .seg button{padding:10px 6px}

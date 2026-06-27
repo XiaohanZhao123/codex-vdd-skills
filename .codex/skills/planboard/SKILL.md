@@ -89,10 +89,12 @@ Preserve accepted step ids. Apply 改 notes directly. Drop 砍 steps unless the
 note asks for a replacement.
 
 Every revision round must make the delta obvious in the HTML. Populate
-`changes_from_previous_round` with one short item per changed, preserved, or
-removed step that matters for review. The rendered page shows this block near
-the top as "本轮改动（打开页面先看这里）", so the operator can see at a glance
-what changed after their annotations without reopening the previous round.
+`changes_from_previous_round` with one short item per step the operator needs
+to re-read: changed steps, added steps, removed steps, and accepted steps only
+when the annotation still changed the visible plan. Do not list unchanged
+accepted steps just to say they stayed accepted. The rendered page shows this
+block near the top as "本轮改动（打开页面先看这里）"; each item links to the
+affected step, and the step card is highlighted with the same delta note.
 
 When feedback changes a core assumption, rerun the planning loop instead of
 patching prose in place. Re-ground the disputed point against files, examples,
@@ -130,6 +132,9 @@ Do not restart or modify an existing preview server unless the operator asks.
 - Apply `shuorenhua` to the final visible layer before writing JSON. Prefer
   direct, concrete wording over rhetorical setup, empty summaries, and
   contrastive phrasing that repeats known context.
+- In revision rounds, keep `changes_from_previous_round` as a navigation layer,
+  not a status ledger. If a step does not need another read, omit it from this
+  block even when it still exists in the plan.
 - Stable step ids are load-bearing across rounds.
 - Do not enter Codex plan mode; planboard is its own review surface.
 - Match the operator's language in replies.
