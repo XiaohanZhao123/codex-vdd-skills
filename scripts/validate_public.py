@@ -11,8 +11,11 @@ from pathlib import Path
 
 try:
     import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
-    tomllib = None
+except ModuleNotFoundError as exc:  # pragma: no cover - direct CLI diagnostic
+    raise SystemExit(
+        "scripts/validate_public.py requires Python 3.11+ so agent TOML files "
+        "are parsed instead of skipped"
+    ) from exc
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +26,15 @@ EXPECTED_SKILLS = {
     "wrap",
     "docs-curator",
     "docs-librarian",
+}
+EXPECTED_AGENTS = {
+    "vdd-spec-reviewer.toml",
+    "vdd-plan-reviewer.toml",
+    "planboard-researcher.toml",
+    "planboard-synthesizer.toml",
+    "planboard-verifier.toml",
+    "wrap-curator.toml",
+    "wrap-librarian.toml",
 }
 FORBIDDEN = [
     "CUA" + "_mobile",
@@ -78,6 +90,20 @@ def check_vendored_attribution() -> list[str]:
     readme = (ROOT / "README.md").read_text(encoding="utf-8", errors="replace")
     if "MrGeDiao/shuorenhua" not in readme or "MIT" not in readme:
         errors.append("README.md: missing shuorenhua upstream attribution")
+    if (
+        "obra/superpowers" not in readme
+        or "Copyright (c) 2025 Jesse Vincent" not in readme
+        or "MIT" not in readme
+    ):
+        errors.append("README.md: missing Superpowers upstream attribution")
+    vdd_text = (
+        ROOT / ".codex" / "skills" / "verifier-driven-development" / "SKILL.md"
+    ).read_text(encoding="utf-8", errors="replace")
+    if (
+        "https://github.com/obra/superpowers" not in vdd_text
+        or "Copyright (c) 2025 Jesse Vincent" not in vdd_text
+    ):
+        errors.append("verifier-driven-development: missing Superpowers attribution")
     license_path = ROOT / ".codex" / "skills" / "shuorenhua" / "LICENSE"
     if not license_path.exists():
         errors.append(".codex/skills/shuorenhua/LICENSE: missing vendored MIT license")
@@ -107,6 +133,40 @@ def check_skill_bundle() -> list[str]:
         if f"name: {name}" not in text.split("---", 2)[1]:
             errors.append(f"{name}: frontmatter name does not match folder")
     return errors
+
+
+def check_agent_bundle() -> list[str]:
+    errors: list[str] = []
+    agent_root = ROOT / ".codex" / "agents"
+    present = {path.name for path in agent_root.iterdir() if path.is_file()}
+    missing = sorted(EXPECTED_AGENTS - present)
+    extra = sorted(present - EXPECTED_AGENTS)
+    if missing:
+        errors.append(f"missing expected agents: {', '.join(missing)}")
+    if extra:
+        errors.append(f"unexpected agents: {', '.join(extra)}")
+    for filename in sorted(EXPECTED_AGENTS & present):
+        path = agent_root / filename
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"{filename}: invalid TOML: {exc}")
+            continue
+        expected_name = filename.removesuffix(".toml")
+        if data.get("name") != expected_name:
+            errors.append(f"{filename}: name must be {expected_name!r}")
+        for key in ("description", "developer_instructions"):
+            value = data.get(key)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{filename}: missing non-empty {key}")
+        nicknames = data.get("nickname_candidates")
+        if nicknames is not None and not (
+            isinstance(nicknames, list)
+            and all(isinstance(item, str) and item for item in nicknames)
+        ):
+            errors.append(f"{filename}: nickname_candidates must be a string list")
+    return errors
+
 
 
 def check_renderer() -> list[str]:
@@ -457,11 +517,10 @@ def check_lint_helper() -> list[str]:
         errors.append("add_lint did not extend the nearest parent Ruff config")
     if '"argparse.ArgumentParser".msg' not in text:
         errors.append("add_lint did not write the banned API entry")
-    if tomllib is not None:
-        data = tomllib.loads(text)
-        msg = data["lint"]["flake8-tidy-imports"]["banned-api"]["argparse.ArgumentParser"]["msg"]
-        if msg != 'Use C:\\tmp and quote "paths" literally.':
-            errors.append("add_lint did not preserve TOML string escapes")
+    data = tomllib.loads(text)
+    msg = data["lint"]["flake8-tidy-imports"]["banned-api"]["argparse.ArgumentParser"]["msg"]
+    if msg != 'Use C:\\tmp and quote "paths" literally.':
+        errors.append("add_lint did not preserve TOML string escapes")
     return errors
 
 
@@ -490,6 +549,13 @@ def check_install_ignores_generated_files() -> list[str]:
             )
             if missing:
                 return [f"install did not copy expected skills: {', '.join(missing)}"]
+            missing_agents = sorted(
+                name
+                for name in EXPECTED_AGENTS
+                if not (target / ".codex" / "agents" / name).exists()
+            )
+            if missing_agents:
+                return [f"install did not copy expected agents: {', '.join(missing_agents)}"]
             copied = target / ".codex" / "skills" / "planboard" / "__pycache__" / "generated.pyc"
             if copied.exists():
                 return ["install copied generated __pycache__ files into the target repo"]
@@ -521,6 +587,7 @@ def main() -> int:
     errors = (
         check_forbidden()
         + check_skill_bundle()
+        + check_agent_bundle()
         + check_vendored_attribution()
         + check_sample_plan()
         + check_renderer()

@@ -8,7 +8,8 @@ kind of verifier, but not the only one. A useful loop can also include HTML
 previews, CLI smokes, training-format dry-runs, sub-agent review passes, and
 human feedback that gets folded back into future checks.
 
-This repo packages that loop into four practical skills:
+This repo packages that loop into four user-facing skills, two support skills,
+and reusable reviewer agent roles:
 
 | Skill | Purpose |
 | --- | --- |
@@ -17,13 +18,24 @@ This repo packages that loop into four practical skills:
 | **Shuorenhua** | Clean plan, status, and documentation prose so review text stays direct and approval-ready. |
 | **Wrap** | End a session by curating documentation updates and applying only the accepted ones. |
 
-The bundle is intentionally small: Codex skill folders, custom agent role files,
-one sample plan, and thin helper scripts.
+| Agent role | Purpose |
+| --- | --- |
+| **vdd-spec-reviewer** | Review an intent contract, spec, or requirements draft before planning. |
+| **vdd-plan-reviewer** | Review an implementation plan for contract coverage, executability, and verifier quality. |
+
+The bundle stays installable: Codex skill folders, custom agent role files, one
+sample plan, and thin helper scripts.
 
 `shuorenhua` is vendored from
 [MrGeDiao/shuorenhua](https://github.com/MrGeDiao/shuorenhua) under the MIT
 license. This bundle includes the runtime skill files used by Codex; upstream
 project docs, assets, and automation files are not included.
+
+The VDD skill and reviewer agent roles include workflow ideas adapted from
+[obra/superpowers](https://github.com/obra/superpowers) v5.1.3 under the MIT
+license (Copyright (c) 2025 Jesse Vincent). The imported material is folded
+into VDD as defensive delivery gates and reviewer contracts, not shipped as a
+separate planning or implementation system.
 
 ## Philosophy
 
@@ -38,16 +50,20 @@ VDD is close to TDD, but wider:
 - Each manual correction should raise one question: can a verifier catch this
   class of mistake next time?
 
-The skills here reflect that shape. Planboard makes intent reviewable before
-implementation. Shuorenhua keeps the review text direct enough to approve or
-reject quickly. Wrap prevents useful session knowledge from evaporating. VDD
-ties the loop together as the default development practice.
+The skills here reflect that shape. VDD ties the loop together as the default
+development practice and now includes root-cause debugging, review triage,
+completion-evidence, and external-workflow import gates. Planboard makes intent
+reviewable before implementation. Shuorenhua keeps the review text direct enough
+to approve or reject quickly. Wrap prevents useful session knowledge from
+evaporating.
 
 ## What Is Included
 
 ```text
 .codex/
   agents/
+    vdd-spec-reviewer.toml
+    vdd-plan-reviewer.toml
     planboard-researcher.toml
     planboard-synthesizer.toml
     planboard-verifier.toml
@@ -91,6 +107,8 @@ The installer copies:
 - `.codex/skills/wrap`
 - `.codex/skills/docs-curator`
 - `.codex/skills/docs-librarian`
+- `.codex/agents/vdd-spec-reviewer.toml`
+- `.codex/agents/vdd-plan-reviewer.toml`
 - `.codex/agents/planboard-*.toml`
 - `.codex/agents/wrap-*.toml`
 
@@ -111,7 +129,8 @@ Normalize this repository's documentation baseline for future wrap runs.
 Create or update docs/README.md as a concise documentation index, create
 .codex/hooks/doc-map.json if it is missing, and add a short pointer from the
 primary agent instruction file to the installed verifier-driven-development,
-planboard, shuorenhua, and wrap skills.
+planboard, shuorenhua, and wrap skills, plus the vdd-spec-reviewer and
+vdd-plan-reviewer agent roles.
 Preserve existing content; relocate or link it instead of deleting it.
 ```
 
@@ -140,10 +159,17 @@ Expected loop:
    filter/drop, or keep with a warning.
 5. Reuse existing tests/verifiers and add a decisive mock set where needed.
 6. Implement in narrow verifier loops.
-7. Use sub-agent verifier passes for independent semantic checks.
-8. For model-generated artifacts, report both quality gains and yield loss from
+7. Investigate failures from root cause: inspect the failing artifact, compare
+   a known-good path, and trace the first bad boundary before editing again.
+8. Classify review findings as `worth-fixing`, `wrong-analysis`, or
+   `not-worth-fixing` before editing.
+9. Use `vdd-spec-reviewer` or `vdd-plan-reviewer` for independent contract and
+   plan checks when the repository has those roles installed.
+10. Before claiming done, run a fresh relevant check, read its output, and
+   report the exact command/result or the smallest missing verification.
+11. For model-generated artifacts, report both quality gains and yield loss from
    filters or drops.
-9. Feed human review and preview findings back into mocks or verifiers.
+12. Feed human review and preview findings back into mocks or verifiers.
 
 ## Use Planboard
 
@@ -201,12 +227,13 @@ This keeps session learnings from drifting into stale or scattered documentation
 Before a large change     planboard -> browser-reviewed implementation plan
 Before human review       shuorenhua -> direct, approval-ready plan/status/docs prose
 During implementation     verifier-driven-development -> contract + mocks + verifiers
+Before claiming done      verifier-driven-development -> root cause, review triage, fresh evidence
 After the session         wrap -> accepted doc updates, retired stale notes, promoted guardrails
 ```
 
 For a new repository, install the bundle, run the recommended Librarian baseline
-once, then use the three skills as a lightweight workflow rather than a heavy
-process.
+once, then use the skills as an installable workflow rather than a heavy process
+tree.
 
 ## Privacy And Sanitization
 
@@ -220,7 +247,9 @@ python3 scripts/validate_public.py
 
 ## Requirements
 
-- Python 3.10+ for helper scripts.
+- Python 3.11+ for `scripts/validate_public.py`, so agent TOML files are parsed
+  during validation.
+- Python 3.10+ is sufficient for `scripts/install.py`.
 - Codex with skill support.
 - Codex subagent support for the full `planboard` and `wrap` workflows.
 

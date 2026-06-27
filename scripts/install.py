@@ -18,6 +18,8 @@ SKILLS = [
     "docs-librarian",
 ]
 AGENTS = [
+    "vdd-spec-reviewer.toml",
+    "vdd-plan-reviewer.toml",
     "planboard-researcher.toml",
     "planboard-synthesizer.toml",
     "planboard-verifier.toml",
