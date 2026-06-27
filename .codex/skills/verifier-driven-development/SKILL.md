@@ -77,6 +77,12 @@ or produced. Then make that behavior checkable with the smallest useful mix of
 existing tests, new mocks, code verifiers, sub-agent verifier prompts, previews,
 or real-entrypoint smoke runs.
 
+When the operator names a failure class or acceptance property, make the first
+new artifact a verifier that would fail on the current behavior. Run that
+verifier before editing the production path and record the intended red result.
+If the verifier cannot be written from the current contract, ask for the missing
+contract detail before implementing.
+
 If a manual correction exposes a class of mistake that can recur, decide whether
 it should become a verifier, a mock case, or a focused sub-agent review.
 
@@ -106,6 +112,22 @@ affect implementation or validation:
 Inspect code, tests, docs, and prior artifacts before asking the operator. Ask
 only for decisions the repository cannot answer.
 
+Before leaving this step, name the acceptance gates in the order they should be
+reported. Match each gate to the operator's requirement rather than to the
+easiest downstream number.
+
+Examples:
+
+- Requirement: "select a subset from a superset." Gate: heterogeneous samples
+  produce different active subsets. Red result: every sample selects the full
+  superset.
+- Requirement: "matching absence should not earn positive credit." Gate: the
+  scoring denominator excludes double-absent fields. Red result: the final
+  score looks fine but the denominator includes rows that neither side uses.
+- Requirement: "the preview proves the semantic claim." Gate: the HTML exposes
+  the exact fields the human must judge. Red result: the page renders but the
+  operator must infer the important relation from raw logs or scattered files.
+
 ### 2. Build A Mock Set
 
 Prefer small decisive examples over broad snapshots. A good mock set is boring
@@ -127,6 +149,20 @@ the verifier or test that consumes them.
 
 Start with existing verifiers, tests, and smoke commands. If they cannot catch a
 mistake the operator has identified, extend them before relying on manual review.
+
+Use a red-green order for every new failure class:
+
+1. Add or identify the verifier that expresses the failure class.
+2. Run it against the current behavior and confirm it fails for the intended
+   reason.
+3. Implement the smallest change that makes that verifier pass.
+4. Keep the failing fixture or cached artifact as a regression case.
+
+Put the verifier at the layer where the claim lives. A deterministic scorer
+proves repeatability; it does not prove the extracted contract is meaningful. A
+readable preview proves the review surface exists; it does not prove the
+scoring denominator is right. A parser proves shape; it does not prove semantic
+selection.
 
 Use the right verifier type:
 
@@ -162,6 +198,11 @@ When a verifier fails, classify it before editing again:
 
 Fix the layer that is actually wrong. Do not weaken a verifier just to get a
 green run.
+
+When reporting progress, lead with the acceptance gates, not with convenient
+secondary numbers. For example, report contract diversity before score spread
+when diversity was the acceptance property. Report denominator membership before
+the aggregate score when denominator design was the risk.
 
 ### 5. Use Subagents As Challenge Surfaces
 
