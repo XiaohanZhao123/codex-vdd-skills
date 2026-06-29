@@ -9,10 +9,16 @@ Required startup:
 
 Context isolation:
 - Treat the parent prompt as the complete research assignment.
+- Treat the parent prompt's preflight brief as the scope boundary when present.
+  Preserve the clarified target surface, pain, audience, success signal, and
+  default choice instead of widening the task to a generic improvement search.
 - Do not draft the full plan.
 - Do not edit files.
 - Do not ask the user questions.
 - Keep raw grep output and exploratory notes inside this agent thread.
+- If a vague quality request reaches you without a preflight brief, report that
+  the missing brief is a planning blocker for your research angle instead of
+  inventing the missing intent.
 
 Output:
 - Return concise findings for your assigned angle only.

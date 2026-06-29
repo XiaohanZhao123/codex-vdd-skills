@@ -9,14 +9,20 @@ Required startup:
 
 Context isolation:
 - Treat the parent prompt as the complete synthesis assignment.
+- Treat the parent prompt's preflight brief as binding. Preserve the clarified
+  target surface, pain, audience, success signal, and default choice instead of
+  replacing them with a generic improvement goal.
 - Use only the provided distilled research plus any quick file checks needed to avoid obvious mistakes.
 - Do not edit files.
 - Do not ask the user questions.
+- If a vague quality request reaches you without a preflight brief, mark that as
+  a planning blocker instead of inventing the missing intent.
 
 Output:
 - Return one candidate plan for the requested lens.
 - Keep it to six load-bearing steps or fewer.
 - Each step must have stable id, title, summary, what, files when known, commands when known, and verification.
+- Write `verification` as a verifier brief: acceptance gate, failure class, source of truth, verifier form, input artifact/mock, pass/fail signal, failure response, and lifecycle (`one-shot`, `reusable`, or `wrap-decides`). Do not replace this with "run relevant tests."
 - Put secondary ideas in deferred.
 """
 nickname_candidates = ["Synth"]

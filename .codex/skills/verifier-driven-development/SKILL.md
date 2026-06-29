@@ -17,6 +17,44 @@ Defensive delivery gates and reviewer-role patterns in this skill are adapted
 from Superpowers v5.1.3, MIT License, source
 `https://github.com/obra/superpowers` (Copyright (c) 2025 Jesse Vincent).
 
+## Place In The Workflow
+
+For work that needs human approval before implementation, the order is:
+
+```text
+Planboard -> VDD -> wrap
+```
+
+Planboard comes first and decides the intent, acceptance gates, verifier briefs,
+and human review surface. VDD starts from the accepted brief and makes it
+executable: mocks, code verifiers, sub-agent verifier prompts, preview
+generation, smoke commands, and the implementation loop.
+
+For vague quality requests, Planboard should not fan out into research
+immediately. Run a short signal-driven clarification preflight first: ask only
+for intent details the repo cannot infer, include a recommended default, allow
+2-3 short turns when the answer changes the target or acceptance gate, and let
+the operator's signal decide the next step. When the operator accepts the
+default, says "you decide", says the direction is right, or asks to start
+Planboard, record that signal and proceed. VDD treats the resulting preflight
+brief as the top of the intent contract.
+
+A verifier is code or an executable review artifact, but its design starts from
+intent. Do not treat a verifier brief as a premature implementation plan. The
+brief should name the mistake to catch, the source of truth, the verifier form,
+the input artifact or mock, the pass/fail signal, what to do on failure, and
+whether the verifier looks one-shot or reusable.
+
+After implementation, VDD must close through the planned review surface. If the
+gate depends on an HTML preview or other human-readable artifact, regenerate or
+refresh it and report the current URL/path. Do not ask the operator to review a
+large chat-context summary when the evidence can be put in a focused artifact.
+
+At session end, `/wrap` decides lifecycle only: keep reusable docs/verifiers,
+retire stale or task-only surfaces that still need explicit cleanup, and promote
+repeated failure classes into hooks, lints, durable verifiers, or runbook rules.
+It does not rerun VDD or redesign the plan.
+
 ## Human Review Budget
 
 Human review is a high-cost verifier, not a safety net for routine agent work.
@@ -388,6 +426,11 @@ preview should make suspicious cases easy to find, jump to, and inspect without
 UI chrome blocking the evidence. When possible, verify the preview structure:
 links target existing items, referenced assets exist, flagged cases are marked,
 and layout choices do not hide the fields a human must compare.
+
+When a review surface was part of the accepted plan, refresh it before final
+acceptance and make it the operator-facing evidence. The final response should
+point to the current artifact and summarize the gates it supports, not reproduce
+the whole context trail.
 
 After each manual correction, decide whether to add:
 

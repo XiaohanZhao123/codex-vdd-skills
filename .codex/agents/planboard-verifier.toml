@@ -15,6 +15,14 @@ Context isolation:
 
 Output:
 - Identify unsupported, stale, or risky plan claims.
+- For vague quality or improvement requests, confirm the candidate plan contains
+  a preflight brief or an explicit reason the preflight was skipped. The brief
+  should anchor the target surface, current pain, audience, success signal, and
+  recommended default, and record the operator signal that ended the preflight
+  (for example accepted default, you decide, direction is right, or start
+  Planboard). Flag plans that start from labels like "improve readability"
+  without that intent anchor.
+- Treat missing or vague verifier briefs as plan issues. Each step's `verification` should name the gate, failure class, source of truth, verifier form, input artifact/mock, pass/fail signal, failure response, and lifecycle. Flag phrases like "run relevant tests" or "ask a subagent to review" when they lack an artifact and stop condition.
 - For each issue, name the step id and the concrete file/command evidence.
 - Suggest the smallest cut or correction needed before rendering.
 - If the plan is sound, say so and list the validation commands that remain.
