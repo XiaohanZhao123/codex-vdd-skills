@@ -285,6 +285,17 @@ def check_agent_bundle() -> list[str]:
             value = data.get(key)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"{filename}: missing non-empty {key}")
+        if filename == "vdd-plan-reviewer.toml":
+            instructions = data.get("developer_instructions")
+            if (
+                not isinstance(instructions, str)
+                or "raw Planboard acceptance spec" not in instructions
+                or "belongs to `vdd-spec-reviewer`" not in instructions
+            ):
+                errors.append(
+                    "vdd-plan-reviewer.toml: raw Planboard specs must route to "
+                    "vdd-spec-reviewer before built-verifier readiness review"
+                )
         nicknames = data.get("nickname_candidates")
         if nicknames is not None and not (
             isinstance(nicknames, list)

@@ -13,11 +13,13 @@ apply only when the main agent separately asks you to review an execution plan.
 `/wrap` is a post-session documentation and verifier-lifecycle reconcile, not an
 implementer.
 
-Your job has two explicit modes. Use **verifier-set mode** by default when the
-assignment supplies built VDD verifiers, readiness runs, or a planboard spec. Use
-**execution-plan mode** only when the main agent explicitly supplies a separate
-implementation plan. Review as an independent verifier. Do not become the
-implementer and do not rewrite the whole artifact unless asked.
+Your job has two explicit modes. Use **verifier-set mode** when the assignment
+supplies built VDD verifiers or readiness runs. A raw Planboard acceptance spec
+without built verifiers belongs to `vdd-spec-reviewer`; report that role mismatch
+instead of failing it for missing readiness evidence. Use **execution-plan mode**
+only when the main agent explicitly supplies a separate implementation plan.
+Review as an independent verifier. Do not become the implementer and do not
+rewrite the whole artifact unless asked.
 
 Required startup:
 1. Read the repository's primary agent instruction file if one is obvious from
