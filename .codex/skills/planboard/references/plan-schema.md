@@ -1,79 +1,147 @@
-# planboard plan JSON schema
+# planboard spec JSON schema
 
-The contract between the Codex Orchestrator/subagent planning workflow
-(producer) and `render_planboard.py` (consumer). Both sides assume this shape;
-keep them in sync.
+The contract between the planboard Orchestrator (producer) and `render_planboard.py`
+(consumer). Both sides assume this shape; keep them in sync.
+
+The artifact is an **L1 acceptance spec**, not an implementation plan. The core unit is
+a `requirement` fused to its acceptance `gate` — a SET, grouped by scope, **unordered**.
+There are no `steps`, no `depends_on`, no `commands`, no `files` (those are L2,
+deferred to VDD/implementation).
 
 ```jsonc
 {
   "task": "string — the thing being planned, verbatim",
-  "round": 1,                       // int, increments each revision round
+  "round": 1,                          // int, increments each revision round
+  "task_class": "code | data",         // P0 result; research/docs never reach the renderer
 
-  "headline": "string — ONE sentence, the whole plan grasped in a breath",
-  "approach_summary": "string — <= 3 sentences of the essential reasoning",
-  "changes_from_previous_round": [  // optional; required for revision rounds with visible deltas
+  "headline": "string — the whole spec grasped in one breath",
+  "intent": "string — the GQM Goal in the operator's words; the source of truth every gate serves",
+
+  "changes_from_previous_round": [      // optional; required for revision rounds
     {
-      "step_id": "step-1",          // affected stable step id, when applicable
-      "status": "改|新增|砍|补约束|保留", // short tag for the visible delta
-      "change": "string — what changed and why this step needs re-reading"
+      "unit_id": "req-2",               // stable id across req-/dec-/scope-
+      "status": "改|新增|砍|补约束|保留|决策已定",
+      "change": "string — what changed and why it needs a re-look"
     }
   ],
 
-  "steps": [                        // ordered; ids are STABLE across rounds
+  "requirements": [                     // THE SET — grouped by scope_id, UNORDERED (no depends_on)
     {
-      "id": "step-1",               // required, stable; never renumber survivors
-      "title": "string",            // required, short imperative
-      "summary": "string",          // one line (<= ~90 chars) — the scannable essence
-      "what": "string",             // required, the full detail
-      "why": "string",              // optional, short
-      "files": ["path/a.py"],       // optional, files created/edited
-      "commands": ["pytest -q"],    // optional, shell to run
-      "risk": "string",             // optional → renders a 风险 tag + detail row
-      "verification": "string",     // required, how to confirm this step worked
-      "depends_on": ["step-1"]      // optional, step ids
+      "id": "req-1",                    // stable across rounds; never renumber a survivor
+      "scope_id": "scope-1",            // grouping only, not order
+      "requirement": "string — what must be true about the outcome; solution-agnostic",
+      "why": "string — the GQM intent it serves",
+      "examples": [                     // Specification by Example / Given-When-Then
+        { "given": "…", "when": "…", "then": "…", "kind": "happy|edge|negative" }
+      ],
+      "gate": {                         // the acceptance gate = a VDD verifier BRIEF (stop here; not test code)
+        "criterion": "string — measurable, observable, implementation-agnostic Given-When-Then pass condition",
+        "failure_class": "string — the error/drift this must catch",
+        "source_of_truth": "string — metric / fixture / existing scorer / human — who decides pass/fail",
+        "input_form": "string — fixture/mock/input-artifact form; prefer a real fixture",
+        "signal": "string — the pass/fail signal: threshold / exact-match / invariant",
+        "failure_response": "string — what VDD must do on failure: block / repair / regenerate / filter-drop / warn / escalate",
+        "verifier_form": "code | script | data-check | preview | subagent | human",
+        "lifecycle": "one-shot | reusable | wrap-decides",
+        "reuse": "string|null — an extendable existing verifier/test path, else null"
+      },
+      "gate_strength": {                // P4 mutation record — the spine; earned, not asserted
+        "mutants": [ { "mutant": "a concrete way to violate the requirement", "caught_by_gate": true, "hardening": "what was added if it survived" } ],
+        "verdict": "strong | weak | open",   // strong = no surviving mutant; open = mutants not yet listed
+        "smells": [ "tautological | assertion-free | shape-only | happy-path-only" ]
+      },
+      "coverage": "covered | gap"        // completeness-critic result
     }
   ],
 
-  "deferred": ["string"],           // one-liners: secondary / cut / gated items
-  "open_questions": ["string"],     // <= 3; need the operator, or found while implementing
-  "alternatives_considered": [      // <= 3
-    { "approach": "string", "why_not": "string" }
-  ]
+  "scopes": [                           // Shape Up — coarse fat-marker outcomes, NOT tasks (read-only grouping)
+    {
+      "id": "scope-1",
+      "name": "string — coarse outcome name",
+      "outcome": "string — the thin vertical slice delivered",
+      "appetite": "S | M | L",          // time-box, not an estimate
+      "requirement_ids": [ "req-1", "req-2" ],
+      "rabbit_holes": [ "string" ]        // known traps to avoid (optional)
+    }
+  ],
+
+  "decisions": [                        // ADR — one decision per record (absorbs the old alternatives_considered)
+    {
+      "id": "dec-1",
+      "decision": "string — the call to make",
+      "options": [ { "label": "A", "shape": "…", "implication": "…" } ],
+      "recommendation": "A",            // preselected in the radio
+      "reason": "string",
+      "status": "recommended | open | accepted | needs-operator",
+      "affects": [ "req-1", "scope-1" ]  // which requirements hang on it
+    }
+  ],
+
+  "non_goals": [ "string — explicitly out of scope (absorbs the won't-do half of the old deferred)" ],
+  "uncovered_failure_modes": [ "string — an intent-named failure mode with no gate; must be empty or explained before ship" ],
+  "open_questions": [ "string — genuine unknowns found while building (<= 3)" ]
 }
 ```
 
-## The scannable / detail split (why `headline` + `summary` exist)
-
-The HTML is interaction-first, so it renders in two layers:
-
-- **Always visible (scan layer):** `headline`, and each step's `title` + `summary`
-  + `files` + the 采纳/改/砍 control. The operator grasps the whole plan without
-  reading prose. This layer must be specific enough to choose a verdict without
-  opening details; avoid generic labels such as "update docs" or "implement
-  changes".
-- **Revision delta layer:** when `changes_from_previous_round` is present, the
-  renderer shows it directly under the headline as "本轮改动". Use it in round
-  2+ as a navigation layer: list only the steps the operator should re-read.
-  Each delta item links to the affected step, and that step card is highlighted
-  with the same note. Do not list unchanged accepted steps just to report that
-  they stayed accepted.
-- **Collapsed (context layer):** `approach_summary` (整体思路), and each step's
-  `what` / `why` / `commands` / `verification` / `risk` / `depends_on` (详情).
-  Available on demand, never dumped.
-
-The final format pass populates `headline`, per-step `summary`, and tightened
-`what` text. If a plan is authored by hand without them, the renderer degrades
-gracefully: missing `summary` → a clipped `what`; missing `headline` → the first
-sentence of `approach_summary`.
-
 ## Invariants
 
-- `required` per step: `id`, `title`, `what`, `verification`. `summary` is added
-  by the Format phase; everything else is optional and omitted from the render
-  when absent.
-- Stable `id`s are load-bearing: the HTML keys per-step annotations by `id`, and
-  revision rounds match 采纳/改/砍 verdicts back to steps by `id`.
-- The renderer escapes all text fields; `commands` render in a `<pre>`, `files`
-  and `depends_on` render as inline `<code>` chips.
-- Distillation budget: at most six main steps. Anything past that, or cut by
-  verification, goes to `deferred` (a one-line tail), never a step.
+- **Each unit is an L1 decision the operator owns** — a `requirement+gate`, a `decision`,
+  or a `scope`. `requirement` states what must be true; `gate` states how it is proven.
+  Which class/file/call-order realizes it is L2 and stays off the board.
+- **Required per requirement:** `id`, `requirement`, and these gate fields:
+  `criterion`, `failure_class`, `source_of_truth`, `input_form`, `signal`,
+  `failure_response`, `verifier_form`, and `lifecycle`. `reuse` is optional.
+  `examples`, `gate_strength`, and `coverage` are added by later phases; missing them
+  renders degraded but valid.
+- **The gate is a brief, not a test.** Runnable assertions inside a gate are a VDD-boundary
+  smell; pull them back to the brief.
+- **Gate strength is earned.** `verdict:"strong"` requires every required gate field,
+  at least one listed mutant, and no surviving mutant. The renderer recomputes this effective
+  verdict: missing gate fields or no mutants render as `open`; a surviving mutant or
+  `coverage:"gap"` renders as `weak`, even if the JSON claims `strong`. An irredeemably
+  vacuous gate (mutants always survive, no oracle) is not kept as a weak requirement — the
+  requirement is **downgraded into a `decisions[]` entry** with `status:"needs-operator"`.
+- **The coverage header is an invariant.** A requirement with no gate, or a gate whose verdict
+  is not `strong`, a missing/invalid `coverage` result, a missing P5
+  `uncovered_failure_modes` list, or a non-empty `uncovered_failure_modes`, is a spec defect the
+  renderer must surface at the top — never hide it.
+- **Applicability is per requirement.** A research-flavored requirement with no writable verifier
+  goes to `non_goals` or carries `verifier_form:"human"`; the rest of the spec still ships. Decline
+  the whole request only when no requirement is verifier-writable.
+- **Stable ids are load-bearing.** The HTML keys per-unit annotations by `id` (`req-`/`dec-`/`scope-`),
+  and revision rounds match 采纳/改/砍 verdicts and decision choices back by `id`. IDs must be
+  non-empty, globally unique across all unit kinds, use their kind prefix, and produce unique
+  renderer anchors. Never renumber a survivor.
+- **Distillation budget:** ≤ 8 requirements, ≤ 4 scopes. Overflow goes to `non_goals` / `open_questions`,
+  never a synthetic requirement.
+- The renderer escapes all text; it degrades gracefully on a missing `headline` (uses the first
+  sentence of `intent`) or `summary` fields.
+
+## Scan / detail split
+
+The HTML renders in two layers so the operator grasps the whole spec without reading prose:
+
+- **Scan (always visible):** per requirement — `requirement` (one line) + the gate in one line
+  (`gate.source_of_truth` + `gate.signal`, or `gate.criterion`) + the `gate_strength.verdict`
+  badge (强 / 暂定 / 易空转) + the 采纳/改/砍 control. Per decision — `decision` + status badge +
+  an A/B/C radio preselecting `recommendation`. Plus the coverage header at the top.
+- **Detail (collapsed, 详情):** `why`, `examples` (Given-When-Then), the full gate brief,
+  `gate_strength.mutants` + `smells`, `coverage`, `reuse`.
+- **Read-only:** `scopes` render as a grouping band (name / outcome / appetite + requirement-id
+  chips) with no verdict control; `non_goals` and `open_questions` as tail sections.
+
+## Migration from the step-era schema
+
+| Old (`steps[]` era) | New |
+|---|---|
+| `steps[]` (a sequence) | `requirements[]` (a set, grouped by `scope_id`, unordered) |
+| `step.verification` (prose) | structured `gate{}` (brief) + `gate_strength{}` (mutation record) |
+| `step.risk` | `gate.failure_class` or `scope.rabbit_holes` |
+| `depends_on` / `commands` / `files` / build order | dropped from the operator view (L2, to VDD/implementation) |
+| `alternatives_considered` | folded into `decisions[].options` (ADR, one per record) |
+| `deferred` | split into `non_goals[]` (won't-do) and `open_questions[]` (unknowns) |
+| `minimal/robust/impact` synthesis + `judge` | Example-Mapping elicitation → gate-designer → mutation-adversary → completeness-critic |
+| stop = "≤ 6 steps" | stop = every requirement has a `strong` gate + zero orphan/uncovered |
+
+The renderer keeps a thin backward-compat path: a JSON that still carries `steps[]` and no
+`requirements[]` renders through the legacy step path so old plans still open.

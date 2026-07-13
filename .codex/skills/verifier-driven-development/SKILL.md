@@ -22,7 +22,7 @@ from Superpowers v5.1.3, MIT License, source
 For work that needs human approval before implementation, the order is:
 
 ```text
-Planboard -> VDD -> wrap
+Planboard -> VDD -> implementation -> /wrap
 ```
 
 Planboard comes first and decides the intent, acceptance gates, verifier briefs,
@@ -54,6 +54,51 @@ At session end, `/wrap` decides lifecycle only: keep reusable docs/verifiers,
 retire stale or task-only surfaces that still need explicit cleanup, and promote
 repeated failure classes into hooks, lints, durable verifiers, or runbook rules.
 It does not rerun VDD or redesign the plan.
+
+## Start From The Spec: Two Ways In
+
+VDD is the executable bridge from **Planboard → VDD → implementation**, and it maps
+onto the **double loop** of ATDD: the acceptance gate is the outer loop (does the
+outcome meet the requirement?), while the implementation's unit checks are the
+inner loop. VDD makes the outer loop real by turning each gate into an executable
+check with evidence that matches the requirement. A new or changed behavior is
+red on the current baseline until implemented. A preservation requirement is
+green on the baseline, red under each controlled mutant, and green again after
+the mutant is removed. The main agent or explicit workers then implement against
+those checks; `/wrap` runs only afterward to reconcile documentation and verifier
+lifecycle.
+
+**With a planboard spec (the normal path).** When a planboard acceptance spec
+exists (`/tmp/planboard/<slug>-r<N>.json`: `requirements[]`, each with a `gate`
+brief and a `gate_strength` record), consume it directly instead of re-extracting
+intent — the gates *are* the contract. Map it in:
+
+- `gate.criterion` + the requirement's `examples` (Given-When-Then) → the
+  executable acceptance test to write. The JSON brief and executable test are
+  separate artifacts that express the same acceptance claim; keep them traceably
+  aligned.
+- `gate.verifier_form` → which verifier to build (`code` / `script` / `data-check`
+  / `preview` / `subagent` / `human`). `gate.source_of_truth`, `input_form`, and
+  `signal` supply the oracle, the fixture, and the pass/fail condition.
+- `gate.failure_response` → what to do when the gate fails: block, repair,
+  regenerate, filter/drop, warn, or escalate. Follow the accepted policy; do not
+  invent one during implementation.
+- `gate.reuse` → the existing verifier/test to extend rather than write fresh.
+- `gate_strength.mutants` → **ready-made red cases and regression fixtures**.
+  Planboard already attacked the gate brief with these; build the real verifier and
+  confirm it goes **red on each mutant** (proof it is not vacuous). For a preservation
+  gate, also prove baseline green, mutant red, then restored baseline green before
+  implementation. Keep the killed mutants as regression cases.
+- `gate_strength.verdict` → readiness. `strong` gates are ready to build. A
+  `weak`/`open` gate, or a requirement planboard downgraded into a
+  `needs-operator` decision, is not buildable yet — resolve it (strengthen the gate,
+  or get the decision) before writing its verifier, not after.
+
+**Without a planboard spec (start light).** For a small task where a full planboard
+is overkill, VDD raises its own minimal contract: name one or two acceptance
+properties and their gates directly (Workflow Step 1 below), build the verifier,
+and collect the matching baseline/mutant evidence. Do not spin up planboard for
+work whose gates you can state in a sentence — the lightweight path is the point.
 
 ## Human Review Budget
 
@@ -119,10 +164,15 @@ existing tests, new mocks, code verifiers, sub-agent verifier prompts, previews,
 or real-entrypoint smoke runs.
 
 When the operator names a failure class or acceptance property, make the first
-new artifact a verifier that would fail on the current behavior. Run that
-verifier before editing the production path and record the intended red result.
-If the verifier cannot be written from the current contract, ask for the missing
-contract detail before implementing.
+new artifact a verifier that exposes that failure. For a new or changed behavior,
+run it on the current baseline and record the intended red result. For a behavior
+that must remain unchanged, record baseline green, controlled-mutant red, and
+restored baseline green. If the verifier cannot be written from the current
+contract, ask for the missing contract detail before implementing.
+
+When a planboard gate supplies the property, its `gate_strength.mutants` are the
+red cases: the verifier must fail on each before you implement. A verifier that
+cannot be made red on any mutant is vacuous — fix the gate, not the verifier.
 
 If a manual correction exposes a class of mistake that can recur, decide whether
 it should become a verifier, a mock case, or a focused sub-agent review.
@@ -212,6 +262,11 @@ reviewer prompts, explicit stop conditions, and clearer completion evidence.
 
 ### 1. Extract The Intent Contract
 
+This step is the lightweight, no-planboard path — and the fallback when a planboard
+gate left something under-specified. When a planboard spec exists, its `gate` briefs
+already are this contract: skip to building the verifiers (Step 3) and use this step
+only to fill a gap the gate left open.
+
 Write down the contract in operational terms. Include only details that can
 affect implementation or validation:
 
@@ -267,13 +322,20 @@ the verifier or test that consumes them.
 Start with existing verifiers, tests, and smoke commands. If they cannot catch a
 mistake the operator has identified, extend them before relying on manual review.
 
-Use a red-green order for every new failure class:
+Use the readiness sequence that matches the requirement:
 
 1. Add or identify the verifier that expresses the failure class.
-2. Run it against the current behavior and confirm it fails for the intended
-   reason.
-3. Implement the smallest change that makes that verifier pass.
-4. Keep the failing fixture or cached artifact as a regression case.
+2. For new or changed behavior, confirm the current baseline fails for the
+   intended reason. For preserved behavior, confirm baseline green, each
+   controlled mutant red, and the restored baseline green.
+3. Implement the smallest change that makes every new/change gate pass while
+   keeping every preservation gate green.
+4. Keep the killed mutant or failing fixture as a regression case.
+
+When a planboard gate supplies `gate_strength.mutants`, seed steps 1–2 with them:
+each mutant is a concrete way to violate the requirement, so the verifier must go
+red on it. The mutants it kills become the regression cases in step 4. The verifier
+type follows the gate's `verifier_form`.
 
 Put the verifier at the layer where the claim lives. A deterministic scorer
 proves repeatability; it does not prove the extracted contract is meaningful. A
@@ -339,7 +401,8 @@ Good sub-agent tasks:
 - review whether human feedback should become a code verifier.
 
 If the repository includes `vdd-spec-reviewer` or `vdd-plan-reviewer` agent
-roles, use them for independent spec/contract or plan checks. Prefer the
+roles, use them for independent gate-executability/strength checks (spec) and
+readiness/coverage checks (plan-reviewer, repurposed). Prefer the
 platform's native code-review tool or an existing code-review skill for code
 review; do not create a parallel implementer workflow by default.
 
@@ -386,16 +449,22 @@ or documented residual risk.
 Use reviewer roles when the review surface is stable enough to encode once and
 reuse. Keep each role narrow:
 
-- `vdd-spec-reviewer` reviews intent contracts, specs, requirements, or change
-  proposals before planning. It should block only on gaps that would make the
-  plan wrong or unverifiable: missing acceptance properties, ambiguity,
-  contradictions, scope creep, missing source of truth, missing failure policy,
-  or impossible verifier expectations.
-- `vdd-plan-reviewer` reviews implementation plans before execution. It should
-  block only when a competent implementer could build the wrong thing or get
-  stuck: missing contract coverage, vague tasks, placeholder steps, missing
-  executable checks, bad task ordering, premature human review, or unrequested
-  parallel workflow paths.
+- `vdd-spec-reviewer` reviews the acceptance spec before verifiers are built — a
+  planboard spec (`requirements[]` + `gate` briefs + `gate_strength`) or a
+  self-raised contract. It audits **gate executability and strength**: is each gate
+  buildable into a verifier with the right readiness evidence, is its
+  `source_of_truth` real, did any gate
+  ship `weak`/`open`/vacuous, is any intent-named failure mode uncovered, is any
+  requirement missing a gate. It blocks only on gaps that would make a verifier
+  wrong or unbuildable: missing acceptance property, missing source of truth,
+  missing failure policy, contradiction, or a gate no mutant can turn red.
+- `vdd-plan-reviewer` (repurposed) confirms the built verifiers before
+  implementation: every new/change gate is red on the unmet baseline; every
+  preservation gate shows baseline green, mutant red, and restored green; every
+  `gate_strength.mutant` is covered; and no accepted requirement lacks a built
+  verifier. VDD does not produce an implementation plan; the main agent or explicit
+  workers own L2 sequencing during implementation. The VDD review checks verifier
+  sensitivity and coverage, not task ordering.
 
 Do not add a VDD implementer role by default. Implementation should stay owned
 by the main agent or by explicit worker agents with disjoint write scopes. Do

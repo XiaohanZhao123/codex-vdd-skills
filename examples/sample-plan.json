@@ -1,59 +1,212 @@
 {
   "task": "Add a small export adapter without changing the existing default path.",
   "round": 1,
-  "headline": "Keep the current default stable while adding one verified adapter path.",
-  "approach_summary": "The plan separates source-format changes from adapter output, adds verifier coverage before broad rewrites, and leaves old defaults untouched until samples are reviewed.",
-  "steps": [
+  "task_class": "code",
+  "headline": "The adapter has a separate source contract, rejects malformed rows, and leaves the default export unchanged.",
+  "intent": "Add one opt-in adapter that downstream consumers can verify without changing the current exporter or treating adapter fields as the canonical source format.",
+  "requirements": [
     {
-      "id": "step-1-contract",
-      "title": "Pin the input and output contract",
-      "summary": "Write down the exact source fields and adapter fields before editing code.",
-      "what": "Inspect the current exporter, examples, and consumer expectations. Record the source contract separately from the adapter contract so later steps do not mix them.",
-      "files": [
-        "docs/export-adapter.md"
+      "id": "req-1-source-contract",
+      "scope_id": "scope-1-adapter-contract",
+      "requirement": "The canonical source fields and the adapter-visible fields remain separate contracts.",
+      "why": "A downstream serialization shape must not silently become the source-of-truth format.",
+      "examples": [
+        {
+          "given": "A valid source row contains canonical fields that the adapter renames or derives",
+          "when": "the adapter builds its output",
+          "then": "the source row stays unchanged and the derived fields appear only in adapter output",
+          "kind": "happy"
+        },
+        {
+          "given": "A consumer requests an adapter-only field from the canonical source",
+          "when": "the source contract is checked",
+          "then": "the request fails instead of widening the source contract",
+          "kind": "negative"
+        }
       ],
-      "verification": "A reviewer can identify the source format, adapter format, and compatibility boundary from one doc section."
+      "gate": {
+        "criterion": "Given canonical fixtures and their adapter outputs, the source rows remain byte-stable while every derived or renamed field appears only in the adapter artifact.",
+        "failure_class": "Adapter fields leak into or replace the canonical source contract.",
+        "source_of_truth": "Canonical fixture rows and the declared adapter-output schema.",
+        "input_form": "A small fixture set with direct, renamed, and derived fields.",
+        "signal": "Source fixtures are unchanged, and source-only versus adapter-only fields match the declared schemas exactly.",
+        "failure_response": "Block the adapter change, keep the canonical source untouched, and repair the source/adapter boundary before retrying.",
+        "verifier_form": "code",
+        "lifecycle": "reusable",
+        "reuse": null
+      },
+      "gate_strength": {
+        "mutants": [
+          {
+            "mutant": "Write a derived adapter field back into the source row.",
+            "caught_by_gate": true,
+            "hardening": "Compare source fixtures before and after adaptation as well as checking output shape."
+          },
+          {
+            "mutant": "Drop the source schema check and accept an adapter-only field as canonical.",
+            "caught_by_gate": true,
+            "hardening": "Check field membership against both declared schemas."
+          }
+        ],
+        "verdict": "strong",
+        "smells": []
+      },
+      "coverage": "covered"
     },
     {
-      "id": "step-2-verifier",
-      "title": "Build a verifier over mock examples",
-      "summary": "Create small examples that fail on missing fields, wrong masks, and bad coordinates.",
-      "what": "Add mock rows and a verifier that checks structure before any training or downstream consumption starts.",
-      "files": [
-        "tests/test_export_adapter_verifier.py"
+      "id": "req-2-adapter-output",
+      "scope_id": "scope-1-adapter-contract",
+      "requirement": "Valid rows produce the declared adapter output, while malformed rows fail before downstream consumption.",
+      "why": "A rendered file is not sufficient if masks, coordinates, or required fields can be silently wrong.",
+      "examples": [
+        {
+          "given": "A valid fixture contains all required fields",
+          "when": "the adapter runs",
+          "then": "the output matches the declared schema and expected values",
+          "kind": "happy"
+        },
+        {
+          "given": "A fixture is missing a required field or contains an out-of-range coordinate",
+          "when": "the adapter runs",
+          "then": "the row is rejected with a specific validation failure",
+          "kind": "negative"
+        }
       ],
-      "commands": [
-        "pytest -q tests/test_export_adapter_verifier.py"
-      ],
-      "verification": "The verifier catches at least one intentionally malformed mock for each high-risk contract rule."
+      "gate": {
+        "criterion": "Given valid and malformed fixtures, valid outputs exact-match the declared schema and values, and every malformed fixture fails at the contract boundary.",
+        "failure_class": "Shape-only validation lets semantically invalid adapter rows pass.",
+        "source_of_truth": "Expected adapter fixtures and explicit invalid-case expectations.",
+        "input_form": "Valid rows plus missing-field, wrong-mask, and out-of-range-coordinate mutations.",
+        "signal": "All valid rows exact-match; every invalid row fails for its intended reason before an output artifact is accepted.",
+        "failure_response": "Reject the adapter artifact, repair the validation or input contract, and rerun the fixture set before downstream use.",
+        "verifier_form": "code",
+        "lifecycle": "reusable",
+        "reuse": null
+      },
+      "gate_strength": {
+        "mutants": [
+          {
+            "mutant": "Keep the right keys but emit an incorrect mask value.",
+            "caught_by_gate": true,
+            "hardening": "Compare values, not only keys and types."
+          },
+          {
+            "mutant": "Write output before rejecting an out-of-range coordinate.",
+            "caught_by_gate": true,
+            "hardening": "Require validation to finish before the artifact is accepted."
+          }
+        ],
+        "verdict": "strong",
+        "smells": []
+      },
+      "coverage": "covered"
     },
     {
-      "id": "step-3-adapter",
-      "title": "Implement the adapter as a narrow path",
-      "summary": "Reuse existing serialization helpers and keep the default export unchanged.",
-      "what": "Add the adapter behind an explicit flag or command while reusing existing parsing and validation helpers.",
-      "files": [
-        "scripts/export_adapter.py",
-        "src/package/export_adapter.py"
+      "id": "req-3-default-compat",
+      "scope_id": "scope-2-compatibility",
+      "requirement": "The adapter remains opt-in, and the existing default export stays unchanged on the same fixtures.",
+      "why": "Adding the adapter must not widen the rollout or change existing consumers without a separate decision.",
+      "examples": [
+        {
+          "given": "The adapter flag is absent",
+          "when": "the existing export entrypoint runs on the fixture set",
+          "then": "its output is byte-for-byte identical to the baseline",
+          "kind": "happy"
+        },
+        {
+          "given": "The adapter is requested explicitly",
+          "when": "the export entrypoint runs",
+          "then": "only the adapter artifact is added and the default artifact stays unchanged",
+          "kind": "edge"
+        }
       ],
-      "depends_on": [
-        "step-1-contract",
-        "step-2-verifier"
-      ],
-      "verification": "A smoke run produces expected JSONL and the previous default command still produces byte-for-byte comparable output on the mock set."
+      "gate": {
+        "criterion": "Given the same fixture set, the default command exact-matches its baseline output, while the explicit adapter path adds only the declared adapter artifact.",
+        "failure_class": "The new adapter changes the default path or existing output as a side effect.",
+        "source_of_truth": "A frozen default-output baseline and the adapter artifact contract.",
+        "input_form": "The same fixtures run once without the adapter and once with it explicitly enabled.",
+        "signal": "Default output exact-matches the baseline; the opt-in run adds one valid adapter artifact and changes nothing else.",
+        "failure_response": "Block rollout, restore the unchanged default path, and investigate the compatibility drift before retrying.",
+        "verifier_form": "script",
+        "lifecycle": "reusable",
+        "reuse": null
+      },
+      "gate_strength": {
+        "mutants": [
+          {
+            "mutant": "Enable the adapter by default while keeping the old artifact present.",
+            "caught_by_gate": true,
+            "hardening": "Run the entrypoint without any new flag and compare the complete output set."
+          },
+          {
+            "mutant": "Change whitespace or field ordering in the default artifact.",
+            "caught_by_gate": true,
+            "hardening": "Use a byte-for-byte baseline for the unchanged default path."
+          }
+        ],
+        "verdict": "strong",
+        "smells": []
+      },
+      "coverage": "covered"
     }
   ],
-  "deferred": [
-    "Full dataset run after the browser-reviewed sample passes.",
-    "Removing legacy output only after the new consumer confirms compatibility."
-  ],
-  "open_questions": [
-    "Should the adapter become the default in the next release or remain opt-in?"
-  ],
-  "alternatives_considered": [
+  "scopes": [
     {
-      "approach": "Replace the exporter in one step",
-      "why_not": "It increases blast radius before verifier coverage exists."
+      "id": "scope-1-adapter-contract",
+      "name": "Adapter contract",
+      "outcome": "Source data remains canonical, and adapter output is both exact and fail-fast.",
+      "appetite": "M",
+      "requirement_ids": [
+        "req-1-source-contract",
+        "req-2-adapter-output"
+      ],
+      "rabbit_holes": [
+        "Treating an output schema as the canonical source format",
+        "Checking only JSON shape instead of model-visible values"
+      ]
+    },
+    {
+      "id": "scope-2-compatibility",
+      "name": "Default-path compatibility",
+      "outcome": "Existing consumers see no change unless the adapter is explicitly enabled.",
+      "appetite": "S",
+      "requirement_ids": [
+        "req-3-default-compat"
+      ],
+      "rabbit_holes": [
+        "Using a successful adapter artifact as proof that the default path stayed unchanged"
+      ]
     }
-  ]
+  ],
+  "decisions": [
+    {
+      "id": "dec-1-future-default",
+      "decision": "Should a later release make the adapter the default?",
+      "options": [
+        {
+          "label": "A",
+          "shape": "Keep it opt-in until consumers explicitly migrate.",
+          "implication": "This change carries no default-path migration."
+        },
+        {
+          "label": "B",
+          "shape": "Make it the default in this change.",
+          "implication": "This requires a separate compatibility and rollout contract."
+        }
+      ],
+      "recommendation": "A",
+      "reason": "The current goal is an additive adapter with a bounded blast radius.",
+      "status": "recommended",
+      "affects": [
+        "req-3-default-compat",
+        "scope-2-compatibility"
+      ]
+    }
+  ],
+  "non_goals": [
+    "Running a full dataset export before the fixture gates pass.",
+    "Removing the existing output format in this change."
+  ],
+  "uncovered_failure_modes": [],
+  "open_questions": []
 }

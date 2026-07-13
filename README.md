@@ -14,17 +14,20 @@ and reusable reviewer agent roles:
 | Skill | Purpose |
 | --- | --- |
 | **Verifier-Driven Development** | Make contract-first, verifier-first implementation the default loop. |
-| **Planboard** | Fan out research and synthesis agents, then render a browser-reviewable implementation plan. |
+| **Planboard** | Turn intent into a browser-reviewable L1 acceptance spec: requirements fused to gates, mutation attacks, decisions, and non-goals. |
 | **Shuorenhua** | Clean plan, status, and documentation prose so review text stays direct and approval-ready. |
 | **Wrap** | End a session by curating documentation updates and applying only the accepted ones. |
 
 | Agent role | Purpose |
 | --- | --- |
-| **vdd-spec-reviewer** | Review an intent contract, spec, or requirements draft before planning. |
-| **vdd-plan-reviewer** | Review an implementation plan for contract coverage, executability, and verifier quality. |
+| **vdd-spec-reviewer** | Review an intent contract or acceptance spec before verifier construction. |
+| **vdd-plan-reviewer** | Confirm built verifiers react correctly to baselines and mutants, and cover every accepted gate before implementation. |
+| **planboard-researcher** | Elicit requirements and examples from a GQM intent brief, with one bounded grounding probe. |
+| **planboard-synthesizer** | Design a VDD verifier brief for each elicited requirement; the Orchestrator groups decisions and scopes after coverage. |
+| **planboard-verifier** | Run fresh mutation and completeness passes so gate strength is earned rather than asserted. |
 
 The bundle stays installable: Codex skill folders, custom agent role files, one
-sample plan, and thin helper scripts.
+sample acceptance spec, and thin helper scripts.
 
 `shuorenhua` is vendored from
 [MrGeDiao/shuorenhua](https://github.com/MrGeDiao/shuorenhua) under the MIT
@@ -52,10 +55,10 @@ VDD is close to TDD, but wider:
 
 The skills here reflect that shape. VDD ties the loop together as the default
 development practice and now includes root-cause debugging, review triage,
-completion-evidence, and external-workflow import gates. Planboard makes intent
-reviewable before implementation. Shuorenhua keeps the review text direct enough
-to approve or reject quickly. Wrap prevents useful session knowledge from
-evaporating.
+completion-evidence, and external-workflow import gates. Planboard makes intent and
+gate strength reviewable before implementation. Shuorenhua keeps the review text
+direct enough to approve or reject quickly. The main agent implements against the
+accepted verifiers; `/wrap` later prevents useful session knowledge from evaporating.
 
 ## What Is Included
 
@@ -153,8 +156,9 @@ Expected loop:
 1. State the intent contract in operational terms.
 2. Name the acceptance gates in report order, especially the gate that would
    catch the operator's current concern.
-3. Add or select a verifier that fails on the current behavior for that concern
-   before editing the implementation.
+3. Add or select a verifier before editing: new/change behavior should fail on
+   the current baseline; preserved behavior should pass on the baseline, fail on
+   a controlled mutant, and pass again after the mutant is removed.
 4. Define how verifier failures should be handled: accept, repair, regenerate,
    filter/drop, or keep with a warning.
 5. Reuse existing tests/verifiers and add a decisive mock set where needed.
@@ -176,20 +180,27 @@ Expected loop:
 Ask Codex for planboard before a non-trivial change:
 
 ```text
-Use planboard for this migration. I need a browser-reviewable plan first.
+Use planboard for this migration. I need a browser-reviewable acceptance spec first.
 ```
 
 Expected flow:
 
-1. The main agent reads the skill and the plan schema.
-2. It fans out research, synthesis, and verification subagents.
-3. It cleans the operator-visible plan text with `shuorenhua`.
-4. It renders an HTML review page from JSON.
-5. You annotate each step as `采纳` / `改` / `砍`, copy annotations, and paste them back.
-6. For revision rounds, the new page shows a "本轮改动" block near the top with
-   only the steps that need another read. Each item links to the changed step,
-   and the step card is highlighted with the same note.
-7. The agent revises the plan or starts implementation after acceptance.
+1. The main agent asks a short Goal → Question → Metric interview only when the
+   goal, metric, or oracle is still unclear.
+2. An elicitation pass turns that intent into solution-agnostic requirements and
+   Given-When-Then examples; one bounded repo probe only checks whether a named
+   fixture or reusable verifier already exists.
+3. Each requirement receives an acceptance-gate brief. A fresh mutation pass tries
+   concrete ways to violate it, and a separate fresh pass checks whole-spec coverage.
+4. The main agent invokes `shuorenhua`, protects ids/metrics/gate facts, and completes
+   both fidelity and residual-style rereads before rendering.
+5. You annotate each requirement as `采纳` / `改` / `砍`, choose A/B/C for decisions,
+   copy the annotations, and paste them back.
+6. Revision pages link the "本轮改动" entries to the changed requirement, decision,
+   or scope and highlight the affected unit.
+7. After acceptance, VDD turns gate briefs and mutants into real verifiers and
+   proves their baseline/mutant behavior; the main agent or explicit workers then
+   implement until every accepted gate passes.
 
 Render the included sample:
 
@@ -224,11 +235,12 @@ This keeps session learnings from drifting into stale or scattered documentation
 ## How The Skills Fit Together
 
 ```text
-Before a large change     planboard -> browser-reviewed implementation plan
-Before human review       shuorenhua -> direct, approval-ready plan/status/docs prose
-During implementation     verifier-driven-development -> contract + mocks + verifiers
+Before a large change     planboard -> browser-reviewed L1 acceptance spec
+Before rendering          shuorenhua -> direct, approval-ready plan/status/docs prose
+Before implementation     verifier-driven-development -> mocks + built verifier evidence
+During implementation     main agent/workers -> implementation against accepted verifiers
 Before claiming done      verifier-driven-development -> root cause, review triage, fresh evidence
-After the session         wrap -> accepted doc updates, retired stale notes, promoted guardrails
+After the session         /wrap -> accepted doc updates, retired stale notes, promoted guardrails
 ```
 
 For a new repository, install the bundle, run the recommended Librarian baseline
